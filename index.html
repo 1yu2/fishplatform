@@ -1,5 +1,17 @@
 <meta charset="utf-8">
 <title>NOVARA</title>
+<script>
+  (function(){
+    var d = document.documentElement;
+    try{
+      if(sessionStorage.getItem('fp-intro')) return;
+      if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    }catch(e){}
+    d.classList.add('intro-on');
+    // safety: if the intro can't start (script/CDN failure), never leave the page covered; the intro cancels this once running
+    window.__introSafety = setTimeout(function(){ d.classList.remove('intro-on'); }, 6000);
+  })();
+</script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,6 +25,8 @@
     --bg-3:#f5f3fd;        /* card tint */
     --card-1:#efecfa;      /* service card, top-left (a touch deeper so white glyphs read) */
     --card-2:#f6f4fd;      /* service card, bottom-right */
+    --intro-1:#5d4f99;     /* intro backdrop, centre (dusk violet) */
+    --intro-2:#2f2752;     /* intro backdrop, edges */
     --fg:#2b2545;          /* deep violet-slate */
     --fg-strong:#1f1a38;
     --muted:#6a6385;       /* muted slate-violet */
@@ -196,9 +210,29 @@
     .js .reveal.in{opacity:1; transform:none}
   }
   a:focus-visible,.btn:focus-visible,.copy-btn:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px; border-radius:6px}
+
+  /* ---------- intro: particle peony bloom, plays once per visit ---------- */
+  #intro{display:none}
+  .intro-on #intro{
+    display:block; position:fixed; inset:0; z-index:100;
+    background:radial-gradient(120% 90% at 50% 42%, var(--intro-1), var(--intro-2) 72%);
+    transition:opacity .9s ease;
+  }
+  .intro-on body{overflow:hidden}
+  #intro.out{opacity:0; pointer-events:none}
+  #intro canvas{width:100%; height:100%; display:block}
+  .intro-skip{
+    position:absolute; right:max(22px, env(safe-area-inset-right,0px)); bottom:max(22px, env(safe-area-inset-bottom,0px));
+    font-family:"Space Mono",monospace; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--accent-soft); background:transparent; border:1px solid var(--line-2); border-radius:999px;
+    padding:9px 16px; cursor:pointer; transition:color .2s, border-color .2s;
+  }
+  .intro-skip:hover, .intro-skip:focus-visible{color:var(--bg-2); border-color:var(--accent-soft); outline:none}
 </style>
 
 <canvas id="scene" aria-hidden="true"></canvas>
+
+<div id="intro"><canvas id="intro-gl" aria-hidden="true"></canvas><button class="intro-skip" type="button">Enter</button></div>
 
 <header class="nav">
   <div class="nav-inner">
@@ -346,12 +380,13 @@
   /* ---------- WebGL particle sphere ---------- */
   var canvas = document.getElementById('scene');
   var THREE = window.THREE;
-  if(!THREE){ canvas.style.display='none'; return; }
+  if(!THREE){ canvas.style.display='none'; document.documentElement.classList.remove('intro-on'); return; }
 
   function tok(name, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
   function rgba(hex, a){ var c = new THREE.Color(hex); return 'rgba('+Math.round(c.r*255)+','+Math.round(c.g*255)+','+Math.round(c.b*255)+','+a+')'; }
   function smooth(e0, e1, x){ var k = Math.min(Math.max((x-e0)/(e1-e0),0),1); return k*k*(3-2*k); }
 
+  initIntro();
   initGlyphs();
 
   var renderer;
@@ -665,6 +700,186 @@
     renderer.render(scene,camera);
   }
   tick();
+
+  /* ---------- intro: particle peony that blooms, then dissolves into the page ----------
+     Stylized take on a blooming-peony clip: ~12k points on a dusk-violet backdrop.
+     Assembles from dust (0-1s), then loops bloom -> hold -> close back to a bud, until the visitor
+     enters (button, click, scroll, Esc/Enter/Space) -> petals dissolve and the page crossfades in. */
+  function initIntro(){
+    var root = document.documentElement, el = document.getElementById('intro');
+    if(!el || !root.classList.contains('intro-on')) return;
+    clearTimeout(window.__introSafety);
+    try{ sessionStorage.setItem('fp-intro','1'); }catch(err){}
+    var cv = document.getElementById('intro-gl'), r;
+    try{ r = new THREE.WebGLRenderer({canvas:cv, alpha:true, antialias:true}); }catch(err){ root.classList.remove('intro-on'); return; }
+    r.setClearColor(0x000000, 0);
+
+    var sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(40, 1, 0.1, 50);
+    cam.position.set(0, 0.2, 5.2);
+    var flower = new THREE.Group(); sc.add(flower);
+
+    // ---- geometry: petals (3 layers), stamen dome, stem, drifting pollen ----
+    var A = [], RND = [], K = [];
+    function add(kind, a, b, c, d){ K.push(kind); A.push(a, b, c, d); RND.push(Math.random(), Math.random(), Math.random()); }
+    var LAYERS = [{n:6, pts:300}, {n:8, pts:340}, {n:10, pts:380}, {n:12, pts:420}];
+    LAYERS.forEach(function(L, layer){
+      for(var i=0;i<L.n;i++){
+        var phi = i*Math.PI*2/L.n + layer*0.41 + (Math.random()-.5)*0.25;
+        for(var j=0;j<L.pts;j++){
+          var u = Math.pow(Math.random(), 0.8);
+          var v = j < L.pts*0.3 ? (Math.random()<0.5?-1:1)*(0.9+Math.random()*0.1) : Math.random()*2-1;   // 30% trace the outline
+          if(j >= L.pts*0.3 && j < L.pts*0.42) u = 0.93 + Math.random()*0.07;                               // and the rounded tip
+          add(0, layer, phi, u, v);
+        }
+      }
+    });
+    for(var c=0;c<1400;c++) add(1, Math.sqrt(Math.random()), Math.random()*Math.PI*2, Math.random(), 0);
+    for(var t=0;t<1800;t++) add(2, Math.random(), Math.random()*Math.PI*2, Math.random(), 0);
+    for(var q=0;q<320;q++) add(3, (Math.random()-.5)*7, (Math.random()-.5)*5, (Math.random()-.5)*3, 0);
+
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(K.length*3), 3));   // computed in the shader
+    g.setAttribute('aA', new THREE.BufferAttribute(new Float32Array(A), 4));
+    g.setAttribute('aR', new THREE.BufferAttribute(new Float32Array(RND), 3));
+    g.setAttribute('aKind', new THREE.BufferAttribute(new Float32Array(K), 1));
+
+    var U = {
+      uTime:{value:0}, uBloom:{value:0}, uAssemble:{value:0}, uOut:{value:0}, uTilt:{value:0.2}, uPix:{value:1}, uSize:{value:0.034},
+      cBase:{value:new THREE.Color(tok('--accent-2','#5a2fd0'))}, cMid:{value:new THREE.Color(tok('--accent-soft','#b9a4ff'))},
+      cTip:{value:new THREE.Color(tok('--bg-2','#fff'))}, cGold:{value:new THREE.Color(tok('--ember-hot','#ffd27a'))}
+    };
+    var mat = new THREE.ShaderMaterial({
+      uniforms:U, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending,   // dark backdrop: additive glows
+      vertexShader:[
+        "attribute vec4 aA; attribute vec3 aR; attribute float aKind;",
+        "uniform float uTime,uBloom,uAssemble,uOut,uPix,uSize,uTilt;",
+        "uniform vec3 cBase,cMid,cTip,cGold;",
+        "varying vec3 vCol; varying float vAlpha;",
+        "vec3 petal(vec4 a, out vec3 col, out float open, out float rim){",
+        "  float layer=a.x, phi=a.y, u=a.z, v=a.w;",
+        "  float d = 0.09*(3.0-layer);",                                   // outer petals open first
+        "  open = smoothstep(d, d+0.7, uBloom);",
+        "  float jit = sin(phi*7.3 + layer*1.7);",                         // per-petal variation
+        "  float len = (0.72 + layer*0.2)*(1.0 + jit*0.08), W = 0.4 + layer*0.09;",
+        "  float ue = u*1.1;",
+        "  float w = sqrt(max(0.0, 1.0 - pow((ue-0.55)/0.55, 2.0)))*W*(0.75+0.25*open);",   // broad oval, rounded tip
+        "  float edge = abs(v);",
+        "  rim = max(smoothstep(0.85,1.0,edge), smoothstep(0.92,1.0,u));",   // outline + rounded tip
+        "  float ruf = sin(v*10.0 + phi*3.0 + u*6.0 + uTime*0.8)*0.08*u*(0.3+edge);",   // ruffled petal edge
+        "  float a0 = 0.1 + layer*0.1 - 0.5*u*u;",                         // bud: upright, tips curl in
+        "  float a1 = 0.55 + layer*0.26 + 0.3*u*u + jit*0.12;",           // open: cupped peony, tips fold out
+        "  float ang = mix(a0, a1, open) + sin(uTime*0.9 + phi)*0.02;",
+        "  float along = u*len;",
+        "  float rr = 0.06 + sin(ang)*along, h = cos(ang)*along;",
+        "  float cup = v*v*w*mix(0.55, 0.25, open);",                      // edges cup toward the centre
+        "  rr += (ruf - cup)*cos(ang); h += (cup - ruf)*sin(ang);",
+        "  vec3 rd = vec3(cos(phi),0.0,sin(phi)), td = vec3(-sin(phi),0.0,cos(phi));",
+        "  col = mix(cBase, cMid, smoothstep(0.0,0.5,u));",
+        "  col = mix(col, cTip, smoothstep(0.45,1.0,u)*0.85 + edge*0.15);",
+        "  col *= mix(0.55, 1.0, open);",                                   // the bud is darker, brightens as it opens
+        "  return rd*rr + td*v*w + vec3(0.0,h,0.0);",
+        "}",
+        "void main(){",
+        "  vec3 p; vec3 col; float size = 1.0, alpha = 0.7, open = 1.0, rim = 0.0;",
+        "  if(aKind < 0.5){ p = petal(aA, col, open, rim); alpha = mix(0.38, 0.9, rim); }",   // dim fill, bright outlines
+        "  else if(aKind < 1.5){",                                          // stamens: golden dome that swells
+        "    float s = mix(0.45, 1.0, smoothstep(0.3,1.0,uBloom));",
+        "    p = vec3(cos(aA.y)*aA.x*0.26, 0.12 + aA.z*0.16*(1.0-aA.x*0.7), sin(aA.y)*aA.x*0.26)*s;",
+        "    col = mix(cGold, cTip, aR.x*0.3)*mix(0.4,1.0,uBloom); size = 1.5; alpha = 0.75;",
+        "  } else if(aKind < 2.5){",                                        // stem: upright S-curve down out of frame
+        "    float t = aA.x;",
+        "    float rad = (aR.x < 0.1 ? 0.075 : 0.032*(0.7+0.3*aA.z))*(1.0 - 0.25*t);",   // 10% stray 'fuzz' like the real stem
+        "    p = vec3(0.16*sin(t*3.2) - 0.08*t, -3.8*t, 0.05*t) + vec3(cos(aA.y),0.0,sin(aA.y))*rad;",
+        "    col = mix(cBase, cMid, 0.2)*0.7; alpha = 0.42; size = 0.9;",   // thin and quiet, like the real stem
+        "  } else {",                                                       // pollen drifting upward
+        "    p = aA.xyz; p.y = mod(p.y + uTime*0.18 + 2.5, 5.0) - 2.5;",
+        "    col = cMid; size = 1.3; alpha = 0.22*(0.5+0.5*sin(uTime*2.0 + aR.x*30.0));",
+        "  }",
+        "  if(aKind < 1.5){ float c = cos(uTilt), s = sin(uTilt); p = vec3(p.x, p.y*c - p.z*s, p.y*s + p.z*c); }",   // head faces the viewer
+        "  float as = smoothstep(aR.z*0.4, aR.z*0.4 + 0.6, uAssemble);",   // gather from scattered dust
+        "  vec3 scatter = (aR - 0.5)*vec3(7.0,5.0,4.0);",
+        "  if(aKind < 2.5) p = mix(scatter, p, as);",
+        "  p += normalize(p + vec3(0.0,0.001,0.0))*uOut*uOut*(1.2 + aR.x*2.4);",   // dissolve outward at the end
+        "  vec4 mv = modelViewMatrix*vec4(p,1.0);",
+        "  gl_Position = projectionMatrix*mv;",
+        "  gl_PointSize = uSize*size*(0.6 + aR.y*0.8)*uPix/(-mv.z);",
+        "  vCol = col; vAlpha = alpha*(aKind > 2.5 ? 1.0 : mix(0.25, 1.0, as))*(1.0 - uOut);",
+        "}"
+      ].join("\n"),
+      fragmentShader:[
+        "precision mediump float;",
+        "varying vec3 vCol; varying float vAlpha;",
+        "void main(){",
+        "  float d = length(gl_PointCoord - 0.5);",
+        "  if(d > 0.5) discard;",
+        "  gl_FragColor = vec4(vCol, vAlpha*smoothstep(0.5, 0.0, d));",
+        "}"
+      ].join("\n")
+    });
+    var pts = new THREE.Points(g, mat);
+    pts.frustumCulled = false;   // positions come from the shader; the buffer is all zeros
+    flower.add(pts);
+
+    function size(){
+      var w = window.innerWidth, h = window.innerHeight, dpr = Math.min(window.devicePixelRatio||1, 2);
+      r.setPixelRatio(dpr); r.setSize(w, h, false);
+      cam.aspect = w/h; cam.updateProjectionMatrix();
+      U.uPix.value = dpr*(h/2);
+      flower.scale.setScalar(0.82*Math.min(1, cam.aspect*1.25));   // a touch smaller; fits portrait phones
+    }
+    size();
+    window.addEventListener('resize', size);
+
+    function ease(x){ x = Math.min(Math.max(x,0),1); return x*x*(3-2*x); }
+    var start = performance.now(), outAt = -1, OUT_DUR = 1.0, done = false;
+    var CYCLE = 7.0;   // bloom 2.8s, hold 1.6s, close 2.0s, rest as a bud 0.6s
+    function bloomAt(t){
+      if(t < 0.5) return 0;
+      var ph = (t - 0.5) % CYCLE;
+      if(ph < 2.8) return ease(ph/2.8);
+      if(ph < 4.4) return 1;
+      if(ph < 6.4) return 1 - ease((ph - 4.4)/2.0);
+      return 0;
+    }
+    function enter(){ if(outAt < 0) outAt = (performance.now() - start)/1000; }
+    function onKey(e){ if(e.key === 'Escape' || e.key === 'Enter' || e.key === ' '){ e.preventDefault(); enter(); } }
+    function finish(){
+      if(done) return; done = true;
+      root.classList.remove('intro-on');
+      window.removeEventListener('resize', size);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('wheel', enter);
+      window.removeEventListener('touchmove', enter);
+      g.dispose(); mat.dispose(); r.dispose();
+      if(r.forceContextLoss) r.forceContextLoss();
+    }
+    el.querySelector('.intro-skip').addEventListener('click', enter);
+    el.addEventListener('click', enter);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('wheel', enter, {passive:true});
+    window.addEventListener('touchmove', enter, {passive:true});
+
+    function frame(now){
+      if(done) return;
+      requestAnimationFrame(frame);
+      var t = (now - start)/1000;
+      U.uTime.value = t;
+      U.uAssemble.value = ease(t/1.0);
+      var bloom = bloomAt(t);
+      U.uBloom.value = bloom;
+      if(outAt >= 0){
+        var o = (t - outAt)/OUT_DUR;
+        U.uOut.value = ease(o);
+        el.classList.add('out');
+        if(o >= 1){ finish(); return; }
+      }
+      U.uTilt.value = 0.2 + bloom*0.5;               // the head turns toward the viewer as it opens (3/4 view)
+      flower.rotation.y = Math.sin(t*0.35)*0.3;      // gentle sway rather than a spin, so the stem stays put
+      flower.position.y = 0.5 + bloom*0.1;
+      r.render(sc, cam);
+    }
+    requestAnimationFrame(frame);
+  }
 
   /* ---------- 3D glass service glyphs ----------
      White frosted extruded layers with a warm rim light, casting soft shadows onto the card.
