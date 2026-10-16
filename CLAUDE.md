@@ -20,7 +20,7 @@
 - 项目:`src/content/projects/<slug>/index.md`(status building/shipped/paused、stack、repo/demo、cover、featured),工具函数 `src/lib/projects.ts`;列表 `[...locale]/projects/index.astro`(玻璃卡片 + 状态筛选,同一 `translationKey` 只出一张卡、优先当前语言),详情 `[...locale]/projects/[slug].astro`。
 - /now:`src/content/now.yaml`(顶层单个 `now:` 条目,working/learning/planning,每项 text.en 必填、ja/zh 可缺省回退英文),页面 `[...locale]/now.astro`。**只放公开内容**。
 - 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
-- Nav 8 个链接:≤1180px 时隐藏 Studio/Services 锚点和 Contact(`a.extra`),≤860px 整排隐藏(手机端还没有菜单)。
+- Nav 8 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services 和 Contact(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ header 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
 - Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体。
 - 本地:`npm run dev`(开发)/ `npm run build && npm run preview`(看最终产物,端口 4321)。

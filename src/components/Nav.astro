@@ -11,19 +11,29 @@ interface Props {
 const { lang, current, alternates } = Astro.props;
 const t = useTranslations(lang);
 const home = localePath(lang, '/');
+
+// one list for the desktop row and the mobile menu; `extra` links drop out of the row on mid-width screens
+const links = [
+  { href: home, label: t('nav.home'), page: 'home' },
+  { href: `${home}#about`, label: t('nav.studio'), extra: true },
+  { href: `${home}#services`, label: t('nav.services'), extra: true },
+  { href: localePath(lang, '/projects/'), label: t('nav.projects'), page: 'projects' },
+  { href: localePath(lang, '/blog/'), label: t('nav.blog'), page: 'blog' },
+  { href: localePath(lang, '/now/'), label: t('nav.now'), page: 'now' },
+  { href: localePath(lang, '/about/'), label: t('nav.about'), page: 'about' },
+  { href: SITE.github, label: t('nav.contact'), extra: true, external: true },
+];
+const attrs = (l: (typeof links)[number]) => ({
+  href: l.href,
+  'aria-current': l.page && l.page === current ? 'page' : undefined,
+  ...(l.external ? { target: '_blank', rel: 'noopener' } : {}),
+});
 ---
 <header class="nav">
   <div class="nav-inner">
     <a class="brand" href={home}><span class="dot"></span>{SITE.name}</a>
     <nav class="links" aria-label="Primary">
-      <a href={home} aria-current={current === 'home' ? 'page' : undefined}>{t('nav.home')}</a>
-      <a class="extra" href={`${home}#about`}>{t('nav.studio')}</a>
-      <a class="extra" href={`${home}#services`}>{t('nav.services')}</a>
-      <a href={localePath(lang, '/projects/')} aria-current={current === 'projects' ? 'page' : undefined}>{t('nav.projects')}</a>
-      <a href={localePath(lang, '/blog/')} aria-current={current === 'blog' ? 'page' : undefined}>{t('nav.blog')}</a>
-      <a href={localePath(lang, '/now/')} aria-current={current === 'now' ? 'page' : undefined}>{t('nav.now')}</a>
-      <a href={localePath(lang, '/about/')} aria-current={current === 'about' ? 'page' : undefined}>{t('nav.about')}</a>
-      <a class="extra" href={SITE.github} target="_blank" rel="noopener">{t('nav.contact')}</a>
+      {links.map((l) => <a class={l.extra ? 'extra' : undefined} {...attrs(l)}>{l.label}</a>)}
     </nav>
     <div class="nav-right">
       <details class="lang-menu">
@@ -41,8 +51,17 @@ const home = localePath(lang, '/');
         </ul>
       </details>
       <a class="nav-cta" href={SITE.github} target="_blank" rel="noopener">{t('nav.cta')}</a>
+      <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="nav-menu"
+        aria-label={t('nav.menuOpen')} data-open-label={t('nav.menuOpen')} data-close-label={t('nav.menuClose')}>
+        <span></span><span></span><span></span>
+      </button>
     </div>
   </div>
+  <nav id="nav-menu" class="nav-menu" aria-label={t('nav.menu')} hidden>
+    <ul>
+      {links.map((l) => <li><a {...attrs(l)}>{l.label}{l.external && <span aria-hidden="true"> ↗</span>}</a></li>)}
+    </ul>
+  </nav>
 </header>
 
 <script is:inline>
@@ -62,6 +81,26 @@ const home = localePath(lang, '/');
       document.addEventListener('click', function(e){ if(menu.open && !menu.contains(e.target)) menu.open = false; });
       document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && menu.open){ menu.open = false; menu.querySelector('summary').focus(); } });
     }
+
+    // mobile menu (≤860px): toggle button, closes on link / outside click / Escape / widening past the breakpoint
+    var btn = document.querySelector('.nav-toggle');
+    var panel = document.getElementById('nav-menu');
+    if(!btn || !panel) return;
+    var root = document.documentElement;
+    function setOpen(open, refocus){
+      btn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-label', btn.getAttribute(open ? 'data-close-label' : 'data-open-label'));
+      root.classList.toggle('nav-open', open);   // locks page scroll (see styles)
+      if(open){ panel.hidden = false; if(menu) menu.open = false; requestAnimationFrame(function(){ panel.classList.add('is-open'); }); }
+      else { panel.classList.remove('is-open'); panel.hidden = true; if(refocus) btn.focus(); }
+    }
+    btn.addEventListener('click', function(){ setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
+    panel.addEventListener('click', function(e){ if(e.target.closest('a')) setOpen(false); });
+    if(menu) menu.addEventListener('toggle', function(){ if(menu.open && !panel.hidden) setOpen(false); });
+    document.addEventListener('click', function(e){ if(!panel.hidden && !panel.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !panel.hidden) setOpen(false, true); });
+    var wide = window.matchMedia('(min-width: 861px)');
+    (wide.addEventListener ? wide.addEventListener.bind(wide, 'change') : wide.addListener.bind(wide))(function(){ if(wide.matches && !panel.hidden) setOpen(false); });
   })();
 </script>
 
@@ -97,4 +136,51 @@ const home = localePath(lang, '/');
      and Contact (the CTA button goes to the same place) */
   @media(max-width:1180px){ nav.links{gap:20px} nav.links a.extra{display:none} }
   @media(max-width:520px){ .nav-right .nav-cta{display:none} }
+
+  /* ---------- mobile menu (≤860px, where the row of links is hidden) ---------- */
+  .nav-toggle{
+    display:none; position:relative; width:40px; height:36px; flex:none; cursor:pointer;
+    background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:0;
+    transition:border-color .2s;
+  }
+  .nav-toggle:hover, .nav-toggle[aria-expanded="true"]{border-color:var(--line-2)}
+  .nav-toggle span{
+    position:absolute; left:12px; right:12px; height:1.5px; border-radius:2px; background:var(--fg);
+    transition:transform .25s cubic-bezier(.2,.7,.2,1), opacity .2s;
+  }
+  .nav-toggle span:nth-child(1){top:12px}
+  .nav-toggle span:nth-child(2){top:17px}
+  .nav-toggle span:nth-child(3){top:22px}
+  .nav-toggle[aria-expanded="true"] span:nth-child(1){transform:translateY(5px) rotate(45deg)}
+  .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0}
+  .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
+  @media(max-width:860px){ .nav-toggle{display:block} }
+
+  /* keep the bar (brand, language, close button) above the panel's dimming shadow */
+  header.nav .nav-inner{position:relative; z-index:1}
+  /* the header has backdrop-filter, so the panel is positioned against it rather than the viewport */
+  .nav-menu{
+    position:absolute; top:100%; left:max(12px, env(safe-area-inset-left,0px)); right:max(12px, env(safe-area-inset-right,0px));
+    max-height:calc(100dvh - 90px); overflow-y:auto; overscroll-behavior:contain;
+    background:var(--bg-2); border:1px solid var(--line); border-radius:20px; padding:8px;
+    box-shadow:0 24px 50px -24px rgba(60,40,140,.4), 0 0 0 100vmax rgba(43,37,69,.16);
+  }
+  .nav-menu[hidden]{display:none}
+  .nav-menu ul{list-style:none; margin:0; padding:0}
+  .nav-menu li + li{border-top:1px solid var(--line)}
+  .nav-menu a{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 16px; min-height:48px; text-decoration:none;
+    font-family:"Archivo",sans-serif; font-weight:600; font-size:1.05rem; color:var(--fg);
+    border-radius:12px; transition:background .15s, color .15s;
+  }
+  .nav-menu a:hover{background:rgba(124,77,255,.06); color:var(--accent-2)}
+  .nav-menu a[aria-current="page"]{color:var(--accent-2)}
+  .nav-menu a[aria-current="page"]::after{content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none}
+  .nav-menu a span{color:var(--accent)}
+  html.nav-open, html.nav-open body{overflow:hidden}
+  @media (prefers-reduced-motion: no-preference){
+    .nav-menu{opacity:0; transform:translateY(-6px); transition:opacity .18s ease, transform .22s cubic-bezier(.2,.7,.2,1)}
+    .nav-menu.is-open{opacity:1; transform:none}
+  }
 </style>
