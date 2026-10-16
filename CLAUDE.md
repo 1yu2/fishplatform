@@ -17,6 +17,10 @@
 - `src/components/Home.astro` / `About.astro`:原 index.html / about.html 搬过来的,CSS(`<style is:global>`)和动画脚本(`<script is:inline>`)保持原样,只把文字换成 `t()`。首页 intro 的防闪 boot 脚本在 `[...locale]/index.astro` 的 head slot 里。
 - `src/components/Nav.astro`:共享导航 + 语言切换(记住选择,`/` 会把选过 ja/zh 的访客送回对应语言)。
 - 博客:`src/content.config.ts`(schema)、`src/content/blog/<slug>/index.md`、列表 `[...locale]/blog/index.astro`、文章 `[...locale]/blog/[slug].astro`;内容页公共样式 `src/styles/site.css`。
+- 项目:`src/content/projects/<slug>/index.md`(status building/shipped/paused、stack、repo/demo、cover、featured),工具函数 `src/lib/projects.ts`;列表 `[...locale]/projects/index.astro`(玻璃卡片 + 状态筛选,同一 `translationKey` 只出一张卡、优先当前语言),详情 `[...locale]/projects/[slug].astro`。
+- /now:`src/content/now.yaml`(顶层单个 `now:` 条目,working/learning/planning,每项 text.en 必填、ja/zh 可缺省回退英文),页面 `[...locale]/now.astro`。**只放公开内容**。
+- 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
+- Nav 8 个链接:≤1180px 时隐藏 Studio/Services 锚点和 Contact(`a.extra`),≤860px 整排隐藏(手机端还没有菜单)。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
 - Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体。
 - 本地:`npm run dev`(开发)/ `npm run build && npm run preview`(看最终产物,端口 4321)。
@@ -62,7 +66,7 @@
 - 360 宽的源视频放大后会略软,别再放得更大;有更高清原片可直接替换 mp4(背景色标需重新测)。
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
-## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客)
+## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客;第 ② 期 projects + now 已做完,在分支上待合并)
 - **框架:迁到 Astro**(Vercel Framework 改为 Astro,有构建步骤)。现有首页/About 页及其动画原样搬入,不改视觉。迁移后「单文件 index.html」约定作废。
 - **三语界面:English / 日本語 / 中文**,Astro i18n 路由:`/`(英文默认)、`/ja/…`、`/zh/…`;nav 语言切换并记住选择;界面文案每种语言一个字典文件。**文章不自动翻译**:每篇有 `lang`,译文用 `translationKey` 关联;单语文章在三种语言列表里都出现并带语言标记。
 - **内容集合**(每类一个文件夹,Markdown/YAML):

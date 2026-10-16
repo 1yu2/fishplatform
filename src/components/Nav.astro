@@ -4,7 +4,7 @@ import { SITE } from '../site';
 
 interface Props {
   lang: Lang;
-  current?: 'home' | 'blog' | 'about';
+  current?: 'home' | 'projects' | 'blog' | 'now' | 'about';
   /** this page in each language, for the language menu */
   alternates: Record<Lang, string>;
 }
@@ -17,11 +17,13 @@ const home = localePath(lang, '/');
     <a class="brand" href={home}><span class="dot"></span>{SITE.name}</a>
     <nav class="links" aria-label="Primary">
       <a href={home} aria-current={current === 'home' ? 'page' : undefined}>{t('nav.home')}</a>
-      <a href={`${home}#about`}>{t('nav.studio')}</a>
-      <a href={`${home}#services`}>{t('nav.services')}</a>
+      <a class="extra" href={`${home}#about`}>{t('nav.studio')}</a>
+      <a class="extra" href={`${home}#services`}>{t('nav.services')}</a>
+      <a href={localePath(lang, '/projects/')} aria-current={current === 'projects' ? 'page' : undefined}>{t('nav.projects')}</a>
       <a href={localePath(lang, '/blog/')} aria-current={current === 'blog' ? 'page' : undefined}>{t('nav.blog')}</a>
+      <a href={localePath(lang, '/now/')} aria-current={current === 'now' ? 'page' : undefined}>{t('nav.now')}</a>
       <a href={localePath(lang, '/about/')} aria-current={current === 'about' ? 'page' : undefined}>{t('nav.about')}</a>
-      <a href={SITE.github} target="_blank" rel="noopener">{t('nav.contact')}</a>
+      <a class="extra" href={SITE.github} target="_blank" rel="noopener">{t('nav.contact')}</a>
     </nav>
     <div class="nav-right">
       <details class="lang-menu">
@@ -90,5 +92,9 @@ const home = localePath(lang, '/');
   .lang-menu li a[aria-current="true"]{color:var(--accent-2); font-weight:600}
   .lang-menu li a[aria-current="true"]::after{content:"✓"; float:right; color:var(--accent)}
   nav.links a[aria-current="page"]{color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:6px}
+  nav.links a, .lang-menu summary{white-space:nowrap}
+  /* eight links don't fit beside the brand and menus on mid-width screens: drop the homepage anchors
+     and Contact (the CTA button goes to the same place) */
+  @media(max-width:1180px){ nav.links{gap:20px} nav.links a.extra{display:none} }
   @media(max-width:520px){ .nav-right .nav-cta{display:none} }
 </style>

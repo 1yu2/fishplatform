@@ -127,29 +127,7 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
   .also{font-size:.85rem; color:var(--muted); margin:16px 0 0}
   .also a{color:var(--accent-2); margin-left:6px}
 
-  /* ---------- article body ---------- */
-  .prose{margin-top:44px; padding-top:34px; border-top:1px solid var(--line); font-size:1.06rem; line-height:1.85; color:var(--fg)}
-  .prose :global(h2){font-family:var(--font-display); font-weight:700; font-size:1.6rem; line-height:1.25; color:var(--fg-strong); margin:2.2em 0 .6em; scroll-margin-top:90px}
-  .prose :global(h3){font-family:var(--font-display); font-weight:600; font-size:1.2rem; color:var(--fg-strong); margin:1.8em 0 .5em; scroll-margin-top:90px}
-  .prose :global(p){margin:0 0 1.15em}
-  .prose :global(a){color:var(--accent-2); text-decoration-color:var(--accent-soft); text-underline-offset:3px}
-  .prose :global(strong){color:var(--fg-strong)}
-  .prose :global(ul), .prose :global(ol){padding-left:1.3em; margin:0 0 1.2em}
-  .prose :global(li){margin:.3em 0}
-  .prose :global(li::marker){color:var(--accent)}
-  .prose :global(blockquote){margin:1.4em 0; padding:.2em 0 .2em 1.1em; border-left:3px solid var(--accent-soft); color:var(--muted)}
-  .prose :global(img){max-width:100%; height:auto; border-radius:14px; border:1px solid var(--line)}
-  .prose :global(hr){border:0; border-top:1px solid var(--line); margin:2.4em 0}
-  .prose :global(table){width:100%; border-collapse:collapse; font-size:.92rem; margin:0 0 1.4em; display:block; overflow-x:auto}
-  .prose :global(th), .prose :global(td){border-bottom:1px solid var(--line); padding:8px 10px; text-align:left}
-  .prose :global(th){font-family:var(--font-mono); font-size:.75rem; letter-spacing:.06em; color:var(--muted); font-weight:400}
-  .prose :global(:not(pre) > code){font-family:var(--font-code); font-size:.88em; color:var(--accent-2); background:rgba(124,77,255,.08); border-radius:6px; padding:.12em .4em}
-  .prose :global(pre){
-    font-family:var(--font-code); font-size:.86rem; line-height:1.65;
-    background:var(--bg-2) !important; border:1px solid var(--line); border-radius:16px;
-    padding:18px 20px; margin:0 0 1.5em; overflow-x:auto;
-    box-shadow:0 18px 40px -32px rgba(124,77,255,.45);
-  }
+  /* article body: .prose lives in styles/site.css (shared with project pages) */
 
   .origin{margin-top:40px; font-size:.85rem; color:var(--faint); font-family:var(--font-mono)}
   .origin a{color:var(--accent-2)}

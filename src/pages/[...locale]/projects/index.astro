@@ -1,0 +1,143 @@
+---
+import '../../../styles/site.css';
+import { Image } from 'astro:assets';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import { SITE } from '../../../site';
+import { languages, langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate } from '../../../lib/posts';
+import { getProjects, projectPath, projectsFor, statuses } from '../../../lib/projects';
+
+export const getStaticPaths = localeStaticPaths;
+const { lang } = Astro.props as { lang: Lang };
+const t = useTranslations(lang);
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/projects/')])) as Record<Lang, string>;
+
+// one card per project; ones only available in another language get a badge
+const projects = projectsFor(await getProjects(), lang);
+const present = statuses.filter((s) => projects.some((p) => p.data.status === s));
+---
+<Base lang={lang} title={t('meta.projects')} description={t('meta.projectsDesc')} path="/projects/">
+  <Nav lang={lang} current="projects" alternates={alternates} />
+
+  <main class="wrap projects">
+    <header class="projects-head">
+      <div class="eyebrow">{t('projects.eyebrow')}</div>
+      <h1 class="page-title">{t('projects.title')}</h1>
+      <p class="page-lead">{t('projects.lead')}</p>
+    </header>
+
+    {present.length > 1 && (
+      <div class="filter" role="group" aria-label={t('projects.filter')}>
+        <button type="button" class="chip" data-status="" aria-pressed="true">{t('projects.all')}</button>
+        {present.map((s) => (
+          <button type="button" class="chip" data-status={s} aria-pressed="false"><i class={`dot st-${s}`}></i>{t(`projects.status.${s}`)}</button>
+        ))}
+      </div>
+    )}
+
+    {projects.length === 0 && <p class="empty">{t('projects.empty')}</p>}
+
+    <ul class="grid">
+      {projects.map((p) => (
+        <li class="pcard" data-status={p.data.status}>
+          <a href={projectPath(p)}>
+            {p.data.cover && <Image class="cover" src={p.data.cover} alt="" widths={[400, 800]} sizes="(max-width: 820px) 100vw, 400px" />}
+            <div class="top">
+              <span class={`status st-${p.data.status}`}><i class="dot"></i>{t(`projects.status.${p.data.status}`)}</span>
+              {p.data.featured && <span class="featured">★ {t('projects.featured')}</span>}
+              {p.data.lang !== lang && <span class="lang-badge">{languages[p.data.lang]}</span>}
+            </div>
+            <h2 lang={p.data.lang}>{p.data.title}</h2>
+            <p lang={p.data.lang}>{p.data.summary}</p>
+            <div class="stack" aria-label={t('projects.stack')}>{p.data.stack.map((s) => <span class="tag">{s}</span>)}</div>
+            <div class="foot">
+              <time datetime={p.data.date.toISOString()}>{formatDate(p.data.date, lang)}</time>
+              <span class="more">{t('projects.more')} →</span>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/')}>{t('about.back')}</a>
+    </footer>
+  </main>
+</Base>
+
+<script is:inline>
+  // status filter
+  (function(){
+    var chips = document.querySelectorAll('.filter .chip');
+    chips.forEach(function(c){
+      c.addEventListener('click', function(){
+        var st = c.getAttribute('data-status');
+        chips.forEach(function(x){ x.setAttribute('aria-pressed', String(x === c)); });
+        document.querySelectorAll('.pcard').forEach(function(li){
+          li.hidden = !!st && li.getAttribute('data-status') !== st;
+        });
+      });
+    });
+  })();
+</script>
+
+<style>
+  .projects{padding-top:130px}
+  .projects-head{max-width:760px}
+  .filter{display:flex; flex-wrap:wrap; gap:8px; margin:44px 0 0}
+  .chip{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--font-mono); font-size:.74rem; letter-spacing:.03em; cursor:pointer;
+    color:var(--muted); background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:7px 14px;
+    transition:color .2s, border-color .2s, background .2s;
+  }
+  .chip:hover{color:var(--fg); border-color:var(--line-2)}
+  .chip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent)}
+  .chip[aria-pressed="true"] .dot{box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+  .empty{color:var(--muted); margin-top:40px}
+
+  .dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:currentColor; flex:none}
+  .dot.st-building{background:var(--st-building)}
+  .dot.st-shipped{background:var(--st-shipped)}
+  .dot.st-paused{background:var(--st-paused)}
+
+  /* glass cards: same recipe as the homepage service cards */
+  .grid{list-style:none; margin:30px 0 0; padding:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px}
+  @media(max-width:1000px){ .grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media(max-width:640px){ .grid{grid-template-columns:minmax(0,1fr)} }
+  .pcard[hidden]{display:none}
+  .pcard a{
+    position:relative; display:flex; flex-direction:column; height:100%; min-width:0;
+    text-decoration:none; color:inherit;
+    background:linear-gradient(160deg, var(--card-1), var(--card-2));
+    border:1px solid var(--line); border-radius:20px; padding:26px 24px 22px;
+    overflow:hidden; transition:transform .3s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .3s;
+  }
+  .pcard a::before{content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(120% 80% at 50% -10%, rgba(155,107,255,.14), transparent 60%); opacity:.6; transition:opacity .3s}
+  .pcard a:hover{transform:translateY(-6px); border-color:var(--line-2); box-shadow:0 20px 44px -30px rgba(124,77,255,.35)}
+  .pcard a:hover::before{opacity:1}
+  .pcard a > *{position:relative}
+  .cover{display:block; width:calc(100% + 48px); height:auto; aspect-ratio:16/9; object-fit:cover; margin:-26px -24px 20px; border-bottom:1px solid var(--line)}
+  .top{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+  .status{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--font-mono); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--fg); background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:4px 10px 4px 9px;
+  }
+  .status.st-building .dot{background:var(--st-building); box-shadow:0 0 8px var(--glow)}
+  .status.st-shipped .dot{background:var(--st-shipped)}
+  .status.st-paused .dot{background:var(--st-paused)}
+  .featured{font-family:var(--font-mono); font-size:.68rem; letter-spacing:.06em; color:var(--accent-2)}
+  .pcard h2{font-family:var(--font-display); font-weight:700; font-size:1.3rem; line-height:1.25; color:var(--fg-strong); margin:18px 0 8px; transition:color .2s}
+  .pcard a:hover h2{color:var(--accent-2)}
+  .pcard p{color:var(--muted); font-size:.95rem; margin:0}
+  .stack{display:flex; flex-wrap:wrap; gap:6px; margin:18px 0 0}
+  .foot{
+    display:flex; justify-content:space-between; gap:12px; margin-top:auto; padding-top:22px;
+    font-family:var(--font-mono); font-size:.7rem; color:var(--faint);
+  }
+  .more{color:var(--accent-2); transition:transform .2s}
+  .pcard a:hover .more{transform:translateX(3px)}
+</style>

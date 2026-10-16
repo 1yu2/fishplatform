@@ -1,0 +1,57 @@
+# The public /now page. Everything here is published: never put private to-dos in it.
+# Item text: `en` is required; `ja` / `zh` fall back to English when missing.
+# status: active | paused | next | done      link: optional URL
+now:
+  updated: 2026-10-16
+
+  working:
+    - text:
+        en: Phase 2 of this site — a projects section and this /now page
+        ja: このサイトの第2期：プロジェクト一覧とこの /now ページ
+        zh: 本站第 ② 期：项目页和这个 /now 页面
+      status: active
+      link: https://github.com/1yu2/fishplatform
+    - text:
+        en: Polishing the homepage sphere → hexagon morph against the reference recording
+        ja: トップページの球体 → 六角形モーフィングを参考動画に合わせて調整
+        zh: 对照参考录屏打磨首页粒子球 → 六边形的变形节奏
+      status: active
+    - text:
+        en: Migrating Astro i18n and a blog onto the site
+        ja: Astro への移行、多言語対応、ブログの追加
+        zh: 迁到 Astro、三语界面和博客
+      status: done
+
+  learning:
+    - text:
+        en: GLSL and shader-driven animation in Three.js
+        ja: GLSL と Three.js のシェーダーアニメーション
+        zh: GLSL 与 Three.js 着色器动画
+      status: active
+    - text:
+        en: Astro content collections and static-site patterns
+        ja: Astro のコンテンツコレクションと静的サイトの設計
+        zh: Astro 内容集合与静态站的组织方式
+      status: active
+    - text:
+        en: Algorithms, one LeetCode problem at a time
+        ja: アルゴリズム（LeetCode を一問ずつ）
+        zh: 算法，一题一题刷 LeetCode
+      status: next
+
+  planning:
+    - text:
+        en: A LeetCode dashboard and a learning radar of GitHub repos
+        ja: LeetCode ダッシュボードと GitHub リポジトリの学習レーダー
+        zh: LeetCode 看板和 GitHub 仓库学习雷达
+      status: next
+    - text:
+        en: Bringing older posts over from Feishu, CSDN and Notion
+        ja: 飛書・CSDN・Notion の過去記事をこちらへ移行
+        zh: 把飞书、CSDN、Notion 上的旧文章搬过来
+      status: next
+    - text:
+        en: Site search, RSS and comments
+        ja: サイト内検索、RSS、コメント
+        zh: 站内搜索、RSS 和评论
+      status: next

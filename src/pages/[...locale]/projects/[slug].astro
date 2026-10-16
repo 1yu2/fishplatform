@@ -1,0 +1,112 @@
+---
+import '../../../styles/site.css';
+import { render } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import { SITE } from '../../../site';
+import { defaultLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate } from '../../../lib/posts';
+import { getProjects, projectPath, type Project } from '../../../lib/projects';
+
+export async function getStaticPaths() {
+  const projects = await getProjects();
+  return projects.map((project) => ({
+    params: { locale: project.data.lang === defaultLang ? undefined : project.data.lang, slug: project.id },
+    props: { project },
+  }));
+}
+
+const { project } = Astro.props as { project: Project };
+const d = project.data;
+const lang = d.lang as Lang;
+const t = useTranslations(lang);
+const { Content } = await render(project);
+
+// translations share a translationKey; the switcher goes to the translation, or that language's project list
+const all = await getProjects();
+const translations = d.translationKey
+  ? all.filter((p) => p.id !== project.id && p.data.translationKey === d.translationKey)
+  : [];
+const alternates = Object.fromEntries(
+  langs.map((l) => {
+    if (l === lang) return [l, projectPath(project)];
+    const tr = translations.find((p) => p.data.lang === l);
+    return [l, tr ? projectPath(tr) : localePath(l, '/projects/')];
+  }),
+) as Record<Lang, string>;
+const host = (u: string) => new URL(u).host.replace(/^www\./, '') + new URL(u).pathname.replace(/\/$/, '');
+---
+<Base lang={lang} title={`${d.title} — ${SITE.name}`} description={d.summary} alternates={alternates}>
+  <Nav lang={lang} current="projects" alternates={alternates} />
+
+  <main class="wrap">
+    <article class="project">
+      <a class="back" href={localePath(lang, '/projects/')}>{t('projects.back')}</a>
+      <header>
+        <div class="meta">
+          <span class={`status st-${d.status}`}><i class="dot"></i>{t(`projects.status.${d.status}`)}</span>
+          <span>{t('projects.started')} <time datetime={d.date.toISOString()}>{formatDate(d.date, lang)}</time></span>
+        </div>
+        <h1 class="page-title">{d.title}</h1>
+        <p class="page-lead">{d.summary}</p>
+        <div class="stack" aria-label={t('projects.stack')}>{d.stack.map((s) => <span class="tag">{s}</span>)}</div>
+        {(d.repo || d.demo) && (
+          <div class="links">
+            {d.demo && <a class="btn primary" href={d.demo} target="_blank" rel="noopener">{t('projects.demo')} ↗<small>{host(d.demo)}</small></a>}
+            {d.repo && <a class="btn" href={d.repo} target="_blank" rel="noopener">{t('projects.repo')} ↗<small>{host(d.repo)}</small></a>}
+          </div>
+        )}
+        {translations.length > 0 && (
+          <p class="also">{t('blog.alsoIn')}: {translations.map((p) => <a href={projectPath(p)} lang={p.data.lang}>{languages[p.data.lang]}</a>)}</p>
+        )}
+      </header>
+
+      {d.cover && <Image class="cover" src={d.cover} alt="" widths={[760, 1520]} sizes="(max-width: 800px) 100vw, 760px" />}
+
+      <div class="prose">
+        <Content />
+      </div>
+    </article>
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/projects/')}>{t('projects.back')}</a>
+    </footer>
+  </main>
+</Base>
+
+<style>
+  .project{max-width:760px; padding-top:120px}
+  .back{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); text-decoration:none}
+  .back:hover{color:var(--accent-2)}
+  header{margin-top:26px}
+  .meta{display:flex; flex-wrap:wrap; align-items:center; gap:12px; font-family:var(--font-mono); font-size:.74rem; color:var(--faint)}
+  .status{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:.68rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--fg); background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:4px 10px 4px 9px;
+  }
+  .dot{display:inline-block; width:7px; height:7px; border-radius:50%}
+  .st-building .dot{background:var(--st-building); box-shadow:0 0 8px var(--glow)}
+  .st-shipped .dot{background:var(--st-shipped)}
+  .st-paused .dot{background:var(--st-paused)}
+  .project .page-title{font-size:clamp(2rem, 4.6vw, 3.4rem); line-height:1.08; max-width:none}
+  .stack{display:flex; flex-wrap:wrap; gap:6px; margin-top:18px}
+  .links{display:flex; flex-wrap:wrap; gap:12px; margin-top:26px}
+  .btn{
+    display:inline-flex; flex-direction:column; gap:2px; min-width:0; max-width:100%;
+    font-weight:600; font-size:.92rem; text-decoration:none; color:var(--fg-strong);
+    background:linear-gradient(160deg, var(--card-1), var(--card-2));
+    border:1px solid var(--line-2); border-radius:14px; padding:11px 18px;
+    transition:transform .2s, border-color .2s, background .2s, color .2s;
+  }
+  .btn small{font-family:var(--font-mono); font-weight:400; font-size:.68rem; color:var(--faint); overflow-wrap:anywhere}
+  .btn:hover{transform:translateY(-2px); border-color:var(--accent)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary small{color:rgba(255,255,255,.75)}
+  .btn.primary:hover{background:var(--accent-2); border-color:var(--accent-2)}
+  .also{font-size:.85rem; color:var(--muted); margin:16px 0 0}
+  .also a{color:var(--accent-2); margin-left:6px}
+  .cover{display:block; width:100%; height:auto; margin-top:40px; border-radius:18px; border:1px solid var(--line)}
+</style>
