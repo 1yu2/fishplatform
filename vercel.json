@@ -3,7 +3,45 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "redirects": [
-    { "source": "/about.html", "destination": "/about/", "permanent": true },
-    { "source": "/index.html", "destination": "/", "permanent": true }
+    {
+      "source": "/about.html",
+      "destination": "/about/",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/now",
+      "destination": "/garden/",
+      "permanent": true
+    },
+    {
+      "source": "/now/",
+      "destination": "/garden/",
+      "permanent": true
+    },
+    {
+      "source": "/ja/now",
+      "destination": "/ja/garden/",
+      "permanent": true
+    },
+    {
+      "source": "/ja/now/",
+      "destination": "/ja/garden/",
+      "permanent": true
+    },
+    {
+      "source": "/zh/now",
+      "destination": "/zh/garden/",
+      "permanent": true
+    },
+    {
+      "source": "/zh/now/",
+      "destination": "/zh/garden/",
+      "permanent": true
+    }
   ]
 }

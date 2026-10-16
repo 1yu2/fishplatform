@@ -60,6 +60,9 @@ export const ui = {
     'nav.contact': 'Contact',
     'nav.cta': 'Get in touch ↗',
     'nav.language': 'Language',
+    'nav.menu': 'Menu',
+    'nav.menuOpen': 'Open menu',
+    'nav.menuClose': 'Close menu',
 
     'intro.enter': 'Enter',
     'common.copy': 'Copy',
@@ -215,6 +218,9 @@ export const ui = {
     'nav.contact': 'お問い合わせ',
     'nav.cta': 'お問い合わせ ↗',
     'nav.language': '言語',
+    'nav.menu': 'メニュー',
+    'nav.menuOpen': 'メニューを開く',
+    'nav.menuClose': 'メニューを閉じる',
 
     'intro.enter': '入る',
     'common.copy': 'コピー',
@@ -370,6 +376,9 @@ export const ui = {
     'nav.contact': '联系',
     'nav.cta': '联系我们 ↗',
     'nav.language': '语言',
+    'nav.menu': '菜单',
+    'nav.menuOpen': '打开菜单',
+    'nav.menuClose': '关闭菜单',
 
     'intro.enter': '进入',
     'common.copy': '复制',
