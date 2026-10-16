@@ -20,6 +20,9 @@
     --accent-2:#5a2fd0;    /* deep violet (hover/labels) */
     --accent-soft:#b9a4ff; /* light lilac */
     --glow:#9b6bff;
+    --ember:#ff7a2e;       /* flame / ember orange */
+    --ember-hot:#ffd27a;   /* flame core, glass rim light */
+    --ember-deep:#e0402a;  /* ember nodes */
     color-scheme: light;
     --fs-display: clamp(2.6rem, 8.5vw, 6.4rem);
     --fs-h2: clamp(1.9rem, 5vw, 3.6rem);
@@ -138,7 +141,14 @@
   .stat .l{color:var(--faint); font-size:.82rem; margin-top:8px; letter-spacing:.02em}
 
   /* ---------- services ---------- */
-  .services{background:linear-gradient(180deg, transparent, rgba(221,217,239,.55) 24%); padding:96px 0 110px}
+  /* services slides over the particle scene like a panel (as in the reference) */
+  .services{position:relative; z-index:0; padding:96px 0 110px}
+  .services::before{
+    content:""; position:absolute; z-index:-1; top:0; bottom:-40vh; left:50%; width:100vw; transform:translateX(-50%);
+    background:linear-gradient(180deg, var(--bg-3), var(--bg) 30%);
+    border-radius:36px 36px 0 0; border-top:1px solid var(--line);
+    box-shadow:0 -40px 90px -50px var(--line-2);
+  }
   .svc-head{display:flex; justify-content:space-between; gap:30px; flex-wrap:wrap; align-items:flex-end; margin-bottom:46px}
   .svc-head h2{font-family:"Archivo",sans-serif; font-weight:700; text-transform:uppercase; font-size:var(--fs-h2); line-height:1.02; margin:.4em 0 0; max-width:14ch}
   .svc-head p{color:var(--muted); max-width:34ch; margin:0}
@@ -156,6 +166,11 @@
   .card:hover .glyph{transform:translateY(-4px) rotate(-3deg)}
   .glyph{width:96px; height:96px; margin-bottom:26px; transition:transform .5s cubic-bezier(.2,.7,.2,1); filter:drop-shadow(0 6px 22px rgba(124,77,255,.55))}
   .glyph svg{width:100%; height:100%; display:block}
+  /* 3D glass glyph (svg stays as fallback when WebGL is unavailable) */
+  .glyph.is-3d{width:auto; height:190px; margin:-18px -26px 14px; filter:none}
+  .glyph.is-3d svg{display:none}
+  .glyph canvas{width:100%; height:100%; display:block}
+  .card:hover .glyph.is-3d{transform:none}
   .card h3{font-family:"Archivo",sans-serif; font-weight:600; font-size:1.25rem; margin:0 0 10px; letter-spacing:.01em}
   .card p{color:var(--muted); font-size:.95rem; margin:0}
   .card .idx{position:absolute; top:22px; right:24px; font-family:"Space Mono",monospace; font-size:.75rem; color:var(--faint)}
@@ -237,7 +252,7 @@
     <div class="cards">
       <article class="card reveal">
         <span class="idx">01</span>
-        <div class="glyph" aria-hidden="true">
+        <div class="glyph" data-shape="ring" aria-hidden="true">
           <svg viewBox="0 0 100 100" fill="none">
             <circle cx="50" cy="50" r="34" stroke="url(#g1)" stroke-width="6" stroke-linecap="round" stroke-dasharray="150 60"/>
             <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b6bff"/><stop offset="1" stop-color="#4a28b8"/></linearGradient></defs>
@@ -248,7 +263,7 @@
       </article>
       <article class="card reveal">
         <span class="idx">02</span>
-        <div class="glyph" aria-hidden="true">
+        <div class="glyph" data-shape="triangle" aria-hidden="true">
           <svg viewBox="0 0 100 100" fill="none">
             <polygon points="50,18 82,74 18,74" stroke="url(#g2)" stroke-width="6" stroke-linejoin="round"/>
             <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b6bff"/><stop offset="1" stop-color="#4a28b8"/></linearGradient></defs>
@@ -259,7 +274,7 @@
       </article>
       <article class="card reveal">
         <span class="idx">03</span>
-        <div class="glyph" aria-hidden="true">
+        <div class="glyph" data-shape="diamond" aria-hidden="true">
           <svg viewBox="0 0 100 100" fill="none">
             <rect x="29" y="29" width="42" height="42" rx="6" transform="rotate(45 50 50)" stroke="url(#g3)" stroke-width="6" stroke-linejoin="round"/>
             <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b6bff"/><stop offset="1" stop-color="#4a28b8"/></linearGradient></defs>
@@ -325,6 +340,12 @@
   var canvas = document.getElementById('scene');
   var THREE = window.THREE;
   if(!THREE){ canvas.style.display='none'; return; }
+
+  function tok(name, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
+  function rgba(hex, a){ var c = new THREE.Color(hex); return 'rgba('+Math.round(c.r*255)+','+Math.round(c.g*255)+','+Math.round(c.b*255)+','+a+')'; }
+  function smooth(e0, e1, x){ var k = Math.min(Math.max((x-e0)/(e1-e0),0),1); return k*k*(3-2*k); }
+
+  initGlyphs();
 
   var renderer;
   try{
@@ -393,6 +414,17 @@
   ].join("\n");
   var morphU = { uMorph:{value:0}, uSpin:{value:0}, uHexRot:{value:0} };
 
+  // flames: up to 3 wandering hot spots (group-local positions) that heat nearby particles + edges
+  var EMBER = tok('--ember','#ff7a2e'), EMBER_HOT = tok('--ember-hot','#ffd27a'), EMBER_DEEP = tok('--ember-deep','#e0402a');
+  var HEAT = [
+    "uniform vec3 uHotP[3]; uniform float uHotI[3];",
+    "float heatAt(vec3 p){ float h=0.0; for(int k=0;k<3;k++){ vec3 q=p-uHotP[k]; h+=uHotI[k]*exp(-dot(q,q)*5.0); } return clamp(h,0.0,1.0); }"
+  ].join("\n");
+  var hotU = {
+    uHotP:{value:[new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]}, uHotI:{value:[0,0,0]},
+    uEmber:{value:new THREE.Color(EMBER)}, uEmberHot:{value:new THREE.Color(EMBER_HOT)}, uEmberDeep:{value:new THREE.Color(EMBER_DEEP)}
+  };
+
   // ---- points cloud ----
   var N = 5200;
   var pos = new Float32Array(N*3);
@@ -419,7 +451,8 @@
   var uniforms = {
     uTime:{value:0}, uSize:{value:0.016}, uAmp:{value:0.30}, uPix:{value:1},
     uColor:{value:new THREE.Color(0x5a2cc2)}, uColor2:{value:new THREE.Color(0x9b6bff)},
-    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot,
+    uHotP:hotU.uHotP, uHotI:hotU.uHotI, uEmber:hotU.uEmber, uEmberHot:hotU.uEmberHot, uEmberDeep:hotU.uEmberDeep
   };
   var pMat = new THREE.ShaderMaterial({
     uniforms:uniforms, transparent:true, depthWrite:false, depthTest:false,
@@ -428,8 +461,8 @@
       "attribute float aScale;",
       "attribute vec2 aSeed;",
       "uniform float uTime,uSize,uAmp,uPix;",
-      "varying float vGlow;",
-      SNOISE, DISP, MORPH,
+      "varying float vGlow, vHeat, vEmber;",
+      SNOISE, DISP, MORPH, HEAT,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
@@ -438,21 +471,27 @@
       "  float m = morphAt(aSeed.y);",
       "  vec3 p = mix(sphereP, hexPos(sp,aSeed,d,uAmp), m);",
       "  vGlow = min(smoothstep(-0.15,0.6,d) + m*smoothstep(0.75,1.0,1.0-aSeed.x)*0.35, 1.0);", // rim a touch brighter
+      "  vHeat = heatAt(p);",
+      // ~4% of nodes are glowing embers that flicker (the red dots on the reference mesh)
+      "  vEmber = step(0.96, fract(aSeed.x*37.17+aSeed.y*11.3)) * (0.55+0.45*sin(uTime*(3.0+aSeed.y*5.0)+aSeed.x*40.0));",
       "  vec4 mv = modelViewMatrix*vec4(p,1.0);",
       "  gl_Position = projectionMatrix*mv;",
-      "  gl_PointSize = uSize*aScale*uPix*(1.0/-mv.z);",
+      "  gl_PointSize = uSize*aScale*uPix*(1.0/-mv.z)*(1.0 + vHeat*1.8 + vEmber*0.9);",
       "}"
     ].join("\n"),
     fragmentShader:[
       "precision mediump float;",
-      "uniform vec3 uColor,uColor2;",
-      "varying float vGlow;",
+      "uniform vec3 uColor,uColor2,uEmber,uEmberHot,uEmberDeep;",
+      "varying float vGlow, vHeat, vEmber;",
       "void main(){",
       "  float d = length(gl_PointCoord-0.5);",
       "  if(d>0.5) discard;",
       "  float a = smoothstep(0.5,0.0,d);",
       "  vec3 col = mix(uColor,uColor2,vGlow);",
-      "  gl_FragColor = vec4(col, a*(0.5+vGlow*0.45));",
+      "  col = mix(col, uEmberDeep, vEmber);",
+      "  col = mix(col, uEmber, smoothstep(0.05,0.5,vHeat));",
+      "  col = mix(col, uEmberHot, smoothstep(0.55,1.0,vHeat));",
+      "  gl_FragColor = vec4(col, max(a*(0.5+vGlow*0.45), a*max(vEmber,vHeat)));",
       "}"
     ].join("\n")
   });
@@ -463,14 +502,15 @@
   var ig = new THREE.IcosahedronGeometry(1.80, 3);
   var wUniforms = {
     uTime:{value:0}, uAmp:{value:0.30}, uColor:{value:new THREE.Color(0x7c4dff)}, uOpacity:{value:0.10},
-    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot,
+    uHotP:hotU.uHotP, uHotI:hotU.uHotI, uEmber:hotU.uEmber
   };
   var wMat = new THREE.ShaderMaterial({
     uniforms:wUniforms, transparent:true, depthWrite:false, wireframe:true,
     blending:THREE.NormalBlending,
     vertexShader:[
-      "uniform float uTime,uAmp;", "varying float vA;",
-      SNOISE, DISP, MORPH,
+      "uniform float uTime,uAmp;", "varying float vA, vHeat;",
+      SNOISE, DISP, MORPH, HEAT,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
@@ -481,13 +521,14 @@
       "  vec3 p = mix(sp + rotY(dir,uSpin)*d*uAmp, hexPos(sp,seed,d,uAmp), m);",
       // vertices near the view-axis poles fan out into spokes across the hole once flattened -> hide them
       "  vA = mix(1.0, smoothstep(0.25,0.6,length(sp.xy)/length(sp)), m);",
+      "  vHeat = heatAt(p);",
       "  gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);",
       "}"
     ].join("\n"),
     fragmentShader:[
       "precision mediump float;",
-      "uniform vec3 uColor; uniform float uOpacity; varying float vA;",
-      "void main(){ gl_FragColor = vec4(uColor,uOpacity*vA); }"
+      "uniform vec3 uColor,uEmber; uniform float uOpacity; varying float vA, vHeat;",
+      "void main(){ gl_FragColor = vec4(mix(uColor,uEmber,vHeat), (uOpacity + vHeat*0.55)*vA); }"
     ].join("\n")
   });
   var wire = new THREE.Mesh(ig, wMat);
@@ -509,7 +550,7 @@
   group.add(core);
 
   // ---- faint concentric rings behind the hexagon (fade in with the morph) ----
-  var ringColor = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7c4dff');
+  var ringColor = new THREE.Color(tok('--accent','#7c4dff'));
   var rings = [];
   [2.55, 3.15, 3.9].forEach(function(r, k){
     var g = new THREE.BufferGeometry().setFromPoints(new THREE.Path().absarc(0,0,r,0,Math.PI*2).getPoints(160));
@@ -519,6 +560,95 @@
     l.userData.base = 0.16 - k*0.04;
     group.add(l); rings.push(l);
   });
+
+  // ---- flames: sprite clusters riding on a particle, heating the mesh around it ----
+  var fc = document.createElement('canvas'); fc.width = fc.height = 128;
+  var fx = fc.getContext('2d');
+  var fgr = fx.createRadialGradient(64,64,0,64,64,64);
+  fgr.addColorStop(0, rgba(tok('--bg-2','#fff'),1));
+  fgr.addColorStop(0.16, rgba(EMBER_HOT,0.95));
+  fgr.addColorStop(0.45, rgba(EMBER,0.5));
+  fgr.addColorStop(1, rgba(EMBER,0));
+  fx.fillStyle = fgr; fx.fillRect(0,0,128,128);
+  var flameTex = new THREE.CanvasTexture(fc);
+  function flameSprite(){
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({map:flameTex, transparent:true, opacity:0, blending:THREE.NormalBlending, depthWrite:false, depthTest:false}));
+    s.visible = false; return s;
+  }
+  var bursts = [];
+  for(var b=0;b<3;b++){
+    var bg = new THREE.Group(), licks = [];
+    for(var j=0;j<10;j++){
+      var sp = flameSprite();
+      sp.userData = { o:new THREE.Vector3((Math.random()-.5)*.3, (Math.random()-.5)*.22, (Math.random()-.5)*.2),
+                      ph:Math.random()*6.28, sz:0.08+Math.random()*0.16, st:1+Math.random()*0.8, up:Math.random()*0.3 };
+      bg.add(sp); licks.push(sp);
+    }
+    group.add(bg);
+    bursts.push({ g:bg, licks:licks, idx:0, life:1, dur:2, wait:0.4+b*0.9, big:0 });
+  }
+  var flash = flameSprite(); group.add(flash); var flashV = 0;
+
+  // same mapping as the shaders (minus noise), so a flame stays glued to its particle through the morph
+  var PI3 = Math.PI/3, PI6 = Math.PI/6;
+  function particleLocal(i, out){
+    var x=pos[i*3], y=pos[i*3+1], z=pos[i*3+2], a=morphU.uSpin.value, c=Math.cos(a), s=Math.sin(a);
+    var sx=c*x+s*z, sy=y, sz=-s*x+c*z, sa=seeds[i*2], sb=seeds[i*2+1];
+    var m = smooth(sb*0.35, sb*0.35+0.65, morph);
+    out.set(sx*1.06, sy*1.06, sz*1.06);
+    if(m>0){
+      var th = Math.atan2(sy,sx);
+      var ang = (((th+PI6)%PI3)+PI3)%PI3 - PI6;
+      var ss = 1 - sa*sa*0.66, r = 0.62 + (1.98*0.8660254/Math.cos(ang) - 0.62)*ss;
+      th += morphU.uHexRot.value;
+      out.lerp(new THREE.Vector3(Math.cos(th)*r, Math.sin(th)*r, (sb-0.5)*0.75*(0.3+0.7*ss)), m);
+    }
+    return out;
+  }
+  var tmpV = new THREE.Vector3();
+  function pickParticle(){
+    for(var k=0;k<40;k++){
+      var i = (Math.random()*N)|0;
+      particleLocal(i, tmpV);
+      if(morph>0.5 ? seeds[i*2] < 0.5 : tmpV.z > 1.0) return i;   // rim of the hexagon / front of the sphere
+    }
+    return i;
+  }
+  function updateFlames(dt, t){
+    bursts.forEach(function(b, k){
+      if(b.wait > 0){
+        b.wait -= dt; hotU.uHotI.value[k] = 0; b.g.visible = false;
+        if(b.wait <= 0){ b.life = 0; b.dur = 1.3+Math.random()*1.3; b.idx = pickParticle(); }
+        return;
+      }
+      b.life += dt/b.dur;
+      if(b.life >= 1){ b.wait = 0.25+Math.random()*1.1; b.big = 0; return; }
+      var I = smooth(0,0.12,b.life)*(1-smooth(0.5,1,b.life))*(1+b.big*0.3);
+      particleLocal(b.idx, b.g.position);
+      b.g.visible = true;
+      hotU.uHotP.value[k].copy(b.g.position);
+      hotU.uHotI.value[k] = I*(0.85+0.15*Math.sin(t*23+k*2.1));
+      b.licks.forEach(function(s){
+        var u = s.userData, f = 0.75+0.25*Math.sin(t*9*u.st+u.ph);
+        s.position.copy(u.o).multiplyScalar(1+b.life*0.8*(1+b.big));
+        s.position.y += b.life*u.up;
+        var sc = u.sz*I*f*(1+b.big*0.5);
+        s.scale.set(sc*(1.25+0.3*Math.sin(t*7+u.ph)), sc, 1);
+        s.material.opacity = Math.min(1, I*(0.55+0.45*Math.sin(t*13*u.st+u.ph*2)));
+        s.visible = true;
+      });
+    });
+    // big flash in the hollow centre as the sphere turns into the hexagon
+    flashV = Math.max(0, flashV - dt/1.3);
+    flash.visible = flashV > 0;
+    var fs = 1.5*smooth(0,0.25,1-flashV)*flashV + 0.2*flashV;
+    flash.scale.set(fs*1.2, fs, 1);
+    flash.material.opacity = Math.min(0.9, flashV);
+  }
+  function igniteAll(){
+    flashV = 1;
+    bursts.forEach(function(b){ b.wait = 0; b.life = 0; b.dur = 1.6+Math.random()*0.6; b.big = 1; b.idx = pickParticle(); });
+  }
 
   // ---- resize ----
   function resize(){
@@ -530,9 +660,9 @@
     uniforms.uPix.value = dpr * (h/2); // keep point size stable across resolutions
     // shift sphere to the right on wide screens, center on narrow
     group.position.x = w>900 ? 1.15 : 0;
-    var s = w>900 ? 1 : 0.8;
-    group.scale.set(s,s,s);
+    baseScale = w>900 ? 1 : 0.8;
   }
+  var baseScale = 1;
   resize();
   window.addEventListener('resize', resize);
 
@@ -544,16 +674,15 @@
   }, {passive:true});
 
   // ---- scroll drive ----
-  var scrollP = 0, morphTarget = 0, morph = 0;
+  var scrollP = 0, morphTarget = 0, morph = 0, prevMorph = 0, exitP = 0;
   function onScroll(){
     var vh = window.innerHeight;
     scrollP = Math.min(window.scrollY / (vh*1.6), 1); // 0..1 across hero->about
     // sphere -> hexagon: starts as the hero leaves, done by the time the about section is centred
     morphTarget = Math.min(Math.max((window.scrollY - vh*0.3)/(vh*0.6), 0), 1);
-    // fade canvas out as services section arrives
-    var fadeStart = vh*1.7, fadeEnd = vh*2.6;
-    var o = 1 - Math.min(Math.max((window.scrollY-fadeStart)/(fadeEnd-fadeStart),0),1);
-    canvas.style.opacity = (0.25 + o*0.75).toFixed(3);
+    // services panel slides over: the shape lifts, shrinks and fades behind it
+    exitP = Math.min(Math.max((window.scrollY - vh*1.15)/(vh*0.75), 0), 1);
+    canvas.style.opacity = (1 - exitP).toFixed(3);
   }
   window.addEventListener('scroll', onScroll, {passive:true});
   onScroll();
@@ -573,6 +702,10 @@
     // morph eases toward the scroll target (smooths wheel steps); per-particle stagger lives in the shader
     morph = reduce ? morphTarget : morph + (morphTarget - morph)*Math.min(1, dt*4.5);
     morphU.uMorph.value = morph;
+    if(!reduce && prevMorph < 0.4 && morph >= 0.4) igniteAll();
+    prevMorph = morph;
+    if(exitP >= 1) return;               // fully covered by the services panel
+    if(!reduce) updateFlames(dt, t);
 
     // amplitude grows a little with scroll (gentle "bloom" on the about section)
     var amp = 0.30 + scrollP*0.26 - morph*0.12;
@@ -594,6 +727,9 @@
     mx += (tx - mx)*0.05; my += (ty - my)*0.05;
     group.rotation.x = my*0.5*(1-morph*0.5) + scrollP*0.2*(1-morph);
     group.rotation.z = mx*0.12;
+    var es = baseScale*(1 - smooth(0,1,exitP)*0.3);
+    group.scale.set(es,es,es);
+    group.position.y = smooth(0,1,exitP)*1.3;
     camera.position.x = mx*0.6;
     camera.position.y = -my*0.4;
     camera.lookAt(0,0,0);
@@ -601,5 +737,144 @@
     renderer.render(scene,camera);
   }
   tick();
+
+  /* ---------- 3D glass service glyphs ----------
+     White frosted extruded layers with a warm rim light, casting soft shadows onto the card.
+     They build in from thin outlines when the card scrolls into view, then drift; hover spreads the layers. */
+  function initGlyphs(){
+    var els = [].slice.call(document.querySelectorAll('.glyph[data-shape]'));
+    if(!els.length) return;
+    var GLASS = tok('--bg-2','#fff'), RIM = tok('--ember-hot','#ffd27a'), FILL = tok('--accent-soft','#b9a4ff'), SHADOW = tok('--accent-2','#5a2fd0');
+    var DEPTH = 0.16, TAU = Math.PI*2;
+
+    function ext(shape){
+      var g = new THREE.ExtrudeGeometry(shape, {depth:DEPTH, bevelEnabled:true, bevelThickness:0.035, bevelSize:0.03, bevelSegments:4, curveSegments:72});
+      g.translate(0,0,-DEPTH/2); return g;
+    }
+    function arcBand(r0, r1, a0, a1){
+      var s = new THREE.Shape(); s.absarc(0,0,r1,a0,a1,false); s.absarc(0,0,r0,a1,a0,true); s.closePath(); return ext(s);
+    }
+    function poly(n, R, rot){
+      var p = []; for(var i=0;i<n;i++){ var a = rot + i*TAU/n; p.push(new THREE.Vector2(Math.cos(a)*R, Math.sin(a)*R)); } return p;
+    }
+    function frame(n, R, w, rot){   // regular polygon outline of stroke width w
+      var Ri = (R*Math.cos(Math.PI/n) - w)/Math.cos(Math.PI/n);
+      var s = new THREE.Shape(poly(n,R,rot)); s.holes.push(new THREE.Path(poly(n,Ri,rot).reverse())); return ext(s);
+    }
+    var UP = Math.PI/2;
+    var SHAPES = {
+      ring: function(){ return [
+        {geo:arcBand(1.08,1.2, 0.35, 0.35+TAU*0.86), z:-0.18, spin:-0.22},
+        {geo:arcBand(0.6,0.86, Math.PI*0.55, Math.PI*1.45), x:-0.06, z:0.22, spin:0.32},
+        {geo:arcBand(0.6,0.7, -Math.PI*0.35, Math.PI*0.25), x:0.04, z:0.06, spin:0.32}
+      ]; },
+      triangle: function(){ return [
+        {geo:frame(3,1.38,0.17,UP), y:0.04, z:-0.18},
+        {geo:frame(3,1.02,0.07,UP), x:-0.12, y:0.02, z:0.04},
+        {geo:frame(3,0.7,0.15,UP), x:0.14, y:-0.2, z:0.26}
+      ]; },
+      diamond: function(){ return [
+        {geo:frame(4,1.22,0.17,UP), x:-0.14, y:0.12, z:-0.18},
+        {geo:frame(4,0.86,0.14,UP), x:0.22, y:-0.16, z:0.18},
+        {geo:frame(4,0.42,0.1,UP), x:0.06, y:0.02, z:0.38}
+      ]; }
+    };
+
+    var items = [];
+    els.forEach(function(el){
+      var make = SHAPES[el.getAttribute('data-shape')];
+      if(!make) return;
+      var cv = document.createElement('canvas'), r;
+      try{ r = new THREE.WebGLRenderer({canvas:cv, alpha:true, antialias:true}); }catch(err){ return; }
+      el.appendChild(cv); el.classList.add('is-3d');
+      r.setClearColor(0x000000, 0);
+      r.shadowMap.enabled = true; r.shadowMap.type = THREE.VSMShadowMap;   // VSM = soft, blurred shadow like the reference
+
+      var sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(27, 1, 0.1, 50);
+      cam.position.set(0, 0, 7.2);
+      sc.add(new THREE.HemisphereLight(GLASS, FILL, 0.55));
+      var key = new THREE.DirectionalLight(GLASS, 0.6);
+      key.position.set(-2.5, 3.2, 5); key.castShadow = true;
+      key.shadow.mapSize.set(1024,1024); key.shadow.bias = -0.0005; key.shadow.radius = 9;
+      var sca = key.shadow.camera; sca.left = sca.bottom = -3; sca.right = sca.top = 3; sca.near = 1; sca.far = 15;
+      sc.add(key);
+      // grazing warm lights pick out the bevels -> golden edges
+      var rim = new THREE.PointLight(RIM, 3.6, 9); rim.position.set(2.8, -2.2, 0.6); sc.add(rim);
+      var rim2 = new THREE.PointLight(RIM, 1.9, 9); rim2.position.set(-2.6, 2.4, 0.4); sc.add(rim2);
+      var floor = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.ShadowMaterial({color:SHADOW, opacity:0.12}));
+      floor.position.z = -1.0; floor.receiveShadow = true; sc.add(floor);
+
+      var holder = new THREE.Group(); sc.add(holder);
+      var pieces = make().map(function(p, k){
+        var mat = new THREE.MeshPhysicalMaterial({color:GLASS, roughness:0.16, metalness:0, clearcoat:1, clearcoatRoughness:0.08, transparent:true, opacity:0});
+        var mesh = new THREE.Mesh(p.geo, mat); mesh.castShadow = true; holder.add(mesh);
+        return {mesh:mesh, x:p.x||0, y:p.y||0, z:p.z||0, spin:p.spin||0, k:k};
+      });
+
+      var it = {el:el, r:r, sc:sc, cam:cam, holder:holder, pieces:pieces, build:reduce?1:0, started:reduce, visible:false,
+                hover:0, hoverT:0, hx:0, hy:0, thx:0, thy:0};
+      var card = el.closest('.card') || el;
+      card.addEventListener('pointermove', function(e){
+        var b = card.getBoundingClientRect();
+        it.thx = (e.clientX-b.left)/b.width - 0.5; it.thy = (e.clientY-b.top)/b.height - 0.5; it.hoverT = 1;
+      });
+      card.addEventListener('pointerleave', function(){ it.thx = it.thy = 0; it.hoverT = 0; });
+      items.push(it);
+    });
+    if(!items.length) return;
+
+    function size(){
+      var dpr = Math.min(window.devicePixelRatio||1, 2);
+      items.forEach(function(it){
+        var w = it.el.clientWidth, h = it.el.clientHeight;
+        if(!w || !h) return;
+        it.r.setPixelRatio(dpr); it.r.setSize(w, h, false);
+        it.cam.aspect = w/h; it.cam.updateProjectionMatrix();
+      });
+    }
+    size();
+    window.addEventListener('resize', size);
+
+    if('IntersectionObserver' in window){
+      var gio = new IntersectionObserver(function(es){
+        es.forEach(function(e){
+          var it = items.filter(function(x){ return x.el === e.target; })[0];
+          it.visible = e.isIntersecting;
+          if(e.intersectionRatio > 0.35) it.started = true;
+        });
+      }, {threshold:[0, 0.35]});
+      items.forEach(function(it){ gio.observe(it.el); });
+    } else {
+      items.forEach(function(it){ it.visible = it.started = true; });
+    }
+
+    var last = performance.now();
+    function easeOut(x){ x = Math.min(Math.max(x,0),1); return 1 - Math.pow(1-x, 3); }
+    function loop(now){
+      requestAnimationFrame(loop);
+      var dt = Math.min((now - last)/1000, 0.05); last = now;
+      if(document.hidden) return;
+      var t = reduce ? 0 : now/1000;
+      items.forEach(function(it, ci){
+        if(!it.visible) return;
+        if(it.started && it.build < 1) it.build = Math.min(1, it.build + dt/(1.8 + ci*0.15));
+        var lk = Math.min(1, dt*6);
+        it.hover += (it.hoverT - it.hover)*lk; it.hx += (it.thx - it.hx)*lk; it.hy += (it.thy - it.hy)*lk;
+        it.pieces.forEach(function(p){
+          var e = easeOut((it.build - p.k*0.12)/0.76);
+          var spread = (1 + it.hover*0.8 + Math.sin(t*1.1 + p.k*1.7)*0.12) * e;
+          p.mesh.position.set(p.x*spread, p.y*spread, p.z*spread*1.3);
+          var s = 0.85 + 0.15*e;
+          p.mesh.scale.set(s, s, 0.05 + 0.95*e);          // starts as a flat outline, extrudes as it builds
+          p.mesh.rotation.z = -(1-e)*0.8 + t*p.spin;
+          p.mesh.material.opacity = 0.86*Math.min(1, e*1.4);
+        });
+        it.holder.rotation.x = -it.hy*0.6 + Math.sin(t*0.6 + ci)*0.08;
+        it.holder.rotation.y = it.hx*0.8 + Math.sin(t*0.45 + ci*1.3)*0.18;
+        it.r.render(it.sc, it.cam);
+      });
+    }
+    requestAnimationFrame(loop);
+  }
 })();
 </script>
