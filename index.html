@@ -374,10 +374,30 @@
     "}"
   ].join("\n");
 
+  // sphere -> hexagonal ring morph (second screen). Ring faces the camera (xy plane),
+  // pointy-top, hollow centre, particles biased toward the rim.
+  var MORPH = [
+    "uniform float uMorph,uSpin,uHexRot;",
+    "vec3 rotY(vec3 p,float a){ float c=cos(a), s=sin(a); return vec3(c*p.x+s*p.z, p.y, -s*p.x+c*p.z); }",
+    "vec3 hexPos(vec3 sp, vec2 seed, float d, float amp){",
+    "  float th = atan(sp.y, sp.x);",
+    "  float a = mod(th + 0.5235988, 1.0471976) - 0.5235988;",   // angle from nearest edge normal
+    "  float rim = 1.98*0.8660254/cos(a);",                       // hexagon, circumradius 1.98
+    "  float s = 1.0 - seed.x*seed.x*0.66;",                      // 0.34..1, dense at the rim
+    "  float r = mix(0.62, rim, s) + d*amp*0.3*(1.6-s);",
+    "  float z = (seed.y-0.5)*0.75*(0.3+0.7*s) + d*amp*0.4;",
+    "  th += uHexRot;",
+    "  return vec3(cos(th)*r, sin(th)*r, z);",
+    "}",
+    "float morphAt(float stagger){ return smoothstep(stagger*0.35, stagger*0.35+0.65, uMorph); }"
+  ].join("\n");
+  var morphU = { uMorph:{value:0}, uSpin:{value:0}, uHexRot:{value:0} };
+
   // ---- points cloud ----
   var N = 5200;
   var pos = new Float32Array(N*3);
   var scl = new Float32Array(N);
+  var seeds = new Float32Array(N*2);
   var R = 1.72, GA = Math.PI*(3.0-Math.sqrt(5.0));
   for(var i=0;i<N;i++){
     var y = 1 - (i/(N-1))*2;
@@ -389,28 +409,35 @@
     pos[i*3+1] = y*rr;
     pos[i*3+2] = Math.sin(th)*rad*rr;
     scl[i] = 0.5 + Math.random()*1.4;
+    seeds[i*2] = Math.random(); seeds[i*2+1] = Math.random();
   }
   var pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(pos,3));
   pg.setAttribute('aScale', new THREE.BufferAttribute(scl,1));
+  pg.setAttribute('aSeed', new THREE.BufferAttribute(seeds,2));
 
   var uniforms = {
     uTime:{value:0}, uSize:{value:0.016}, uAmp:{value:0.30}, uPix:{value:1},
-    uColor:{value:new THREE.Color(0x5a2cc2)}, uColor2:{value:new THREE.Color(0x9b6bff)}
+    uColor:{value:new THREE.Color(0x5a2cc2)}, uColor2:{value:new THREE.Color(0x9b6bff)},
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
   };
   var pMat = new THREE.ShaderMaterial({
     uniforms:uniforms, transparent:true, depthWrite:false, depthTest:false,
     blending:THREE.NormalBlending,
     vertexShader:[
       "attribute float aScale;",
+      "attribute vec2 aSeed;",
       "uniform float uTime,uSize,uAmp,uPix;",
       "varying float vGlow;",
-      SNOISE, DISP,
+      SNOISE, DISP, MORPH,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
-      "  vGlow = smoothstep(-0.15,0.6,d);",
-      "  vec3 p = position + dir*d*uAmp;",
+      "  vec3 sp = rotY(position,uSpin);",
+      "  vec3 sphereP = sp + rotY(dir,uSpin)*d*uAmp;",
+      "  float m = morphAt(aSeed.y);",
+      "  vec3 p = mix(sphereP, hexPos(sp,aSeed,d,uAmp), m);",
+      "  vGlow = min(smoothstep(-0.15,0.6,d) + m*smoothstep(0.75,1.0,1.0-aSeed.x)*0.35, 1.0);", // rim a touch brighter
       "  vec4 mv = modelViewMatrix*vec4(p,1.0);",
       "  gl_Position = projectionMatrix*mv;",
       "  gl_PointSize = uSize*aScale*uPix*(1.0/-mv.z);",
@@ -434,24 +461,33 @@
 
   // ---- wire mesh (the network) ----
   var ig = new THREE.IcosahedronGeometry(1.80, 3);
-  var wUniforms = { uTime:{value:0}, uAmp:{value:0.30}, uColor:{value:new THREE.Color(0x7c4dff)}, uOpacity:{value:0.10} };
+  var wUniforms = {
+    uTime:{value:0}, uAmp:{value:0.30}, uColor:{value:new THREE.Color(0x7c4dff)}, uOpacity:{value:0.10},
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
+  };
   var wMat = new THREE.ShaderMaterial({
     uniforms:wUniforms, transparent:true, depthWrite:false, wireframe:true,
     blending:THREE.NormalBlending,
     vertexShader:[
-      "uniform float uTime,uAmp;",
-      SNOISE, DISP,
+      "uniform float uTime,uAmp;", "varying float vA;",
+      SNOISE, DISP, MORPH,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
-      "  vec3 p = position + dir*d*uAmp;",
+      "  vec3 sp = rotY(position,uSpin);",
+      // smooth (noise-based) seeds keep neighbouring vertices together -> a coherent web on the rim
+      "  vec2 seed = clamp(vec2(snoise(dir*1.6)*0.6+0.45, snoise(dir*2.3+7.1)*0.5+0.5), 0.0, 1.0);",
+      "  float m = morphAt(seed.y);",
+      "  vec3 p = mix(sp + rotY(dir,uSpin)*d*uAmp, hexPos(sp,seed,d,uAmp), m);",
+      // vertices near the view-axis poles fan out into spokes across the hole once flattened -> hide them
+      "  vA = mix(1.0, smoothstep(0.25,0.6,length(sp.xy)/length(sp)), m);",
       "  gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);",
       "}"
     ].join("\n"),
     fragmentShader:[
       "precision mediump float;",
-      "uniform vec3 uColor; uniform float uOpacity;",
-      "void main(){ gl_FragColor = vec4(uColor,uOpacity); }"
+      "uniform vec3 uColor; uniform float uOpacity; varying float vA;",
+      "void main(){ gl_FragColor = vec4(uColor,uOpacity*vA); }"
     ].join("\n")
   });
   var wire = new THREE.Mesh(ig, wMat);
@@ -471,6 +507,18 @@
   var core = new THREE.Sprite(coreMat);
   core.scale.set(2.4,2.4,1);
   group.add(core);
+
+  // ---- faint concentric rings behind the hexagon (fade in with the morph) ----
+  var ringColor = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7c4dff');
+  var rings = [];
+  [2.55, 3.15, 3.9].forEach(function(r, k){
+    var g = new THREE.BufferGeometry().setFromPoints(new THREE.Path().absarc(0,0,r,0,Math.PI*2).getPoints(160));
+    var m = new THREE.LineBasicMaterial({color:ringColor, transparent:true, opacity:0, depthWrite:false});
+    var l = new THREE.LineLoop(g, m);
+    l.position.z = -0.4 - k*0.2;
+    l.userData.base = 0.16 - k*0.04;
+    group.add(l); rings.push(l);
+  });
 
   // ---- resize ----
   function resize(){
@@ -496,10 +544,12 @@
   }, {passive:true});
 
   // ---- scroll drive ----
-  var scrollP = 0;
+  var scrollP = 0, morphTarget = 0, morph = 0;
   function onScroll(){
     var vh = window.innerHeight;
     scrollP = Math.min(window.scrollY / (vh*1.6), 1); // 0..1 across hero->about
+    // sphere -> hexagon: starts as the hero leaves, done by the time the about section is centred
+    morphTarget = Math.min(Math.max((window.scrollY - vh*0.3)/(vh*0.6), 0), 1);
     // fade canvas out as services section arrives
     var fadeStart = vh*1.7, fadeEnd = vh*2.6;
     var o = 1 - Math.min(Math.max((window.scrollY-fadeStart)/(fadeEnd-fadeStart),0),1);
@@ -520,21 +570,29 @@
     uniforms.uTime.value = tt;
     wUniforms.uTime.value = tt;
 
+    // morph eases toward the scroll target (smooths wheel steps); per-particle stagger lives in the shader
+    morph = reduce ? morphTarget : morph + (morphTarget - morph)*Math.min(1, dt*4.5);
+    morphU.uMorph.value = morph;
+
     // amplitude grows a little with scroll (gentle "bloom" on the about section)
-    var amp = 0.30 + scrollP*0.26;
+    var amp = 0.30 + scrollP*0.26 - morph*0.12;
     uniforms.uAmp.value = amp;
     wUniforms.uAmp.value = amp;
-    wUniforms.uOpacity.value = 0.10 + scrollP*0.12;
+    wUniforms.uOpacity.value = 0.10 + scrollP*0.12 + morph*0.06;
+    rings.forEach(function(l){ l.material.opacity = l.userData.base*morph; });
 
     // core pulse
     var pulse = reduce ? 2.4 : 2.4 + Math.sin(t*1.4)*0.22 + scrollP*0.5;
     core.scale.set(pulse,pulse,1);
-    coreMat.opacity = 0.55 + (reduce?0:Math.sin(t*1.4)*0.08);
+    coreMat.opacity = 0.55 + morph*0.15 + (reduce?0:Math.sin(t*1.4)*0.08);
 
-    // rotation + parallax
-    if(!reduce){ group.rotation.y += dt*0.07; }
+    // rotation + parallax: sphere spins on y, hexagon turns in-plane; each speed fades with the morph
+    if(!reduce){
+      morphU.uSpin.value += dt*0.07*(1-morph);
+      morphU.uHexRot.value += dt*0.06*morph;
+    }
     mx += (tx - mx)*0.05; my += (ty - my)*0.05;
-    group.rotation.x = my*0.5 + scrollP*0.2;
+    group.rotation.x = my*0.5*(1-morph*0.5) + scrollP*0.2*(1-morph);
     group.rotation.z = mx*0.12;
     camera.position.x = mx*0.6;
     camera.position.y = -my*0.4;
