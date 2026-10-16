@@ -105,6 +105,13 @@ const attrs = (l: (typeof links)[number]) => ({
 </script>
 
 <style is:global>
+  /* dropdown surfaces: lilac glass mixed from the theme tokens rather than plain white */
+  header.nav{
+    --menu-bg:linear-gradient(165deg,
+      color-mix(in srgb, var(--accent-soft) 42%, var(--bg-2)),
+      color-mix(in srgb, var(--accent-soft) 26%, var(--bg-2)));
+    --menu-hover:rgba(124,77,255,.12);
+  }
   .nav-right{display:flex; align-items:center; gap:12px}
   .lang-menu{position:relative}
   .lang-menu summary{
@@ -120,14 +127,14 @@ const attrs = (l: (typeof links)[number]) => ({
   .lang-menu ul{
     position:absolute; right:0; top:calc(100% + 8px); z-index:30; min-width:140px;
     list-style:none; margin:0; padding:6px;
-    background:var(--bg-2); border:1px solid var(--line); border-radius:14px;
+    background:var(--card-1); background:var(--menu-bg); border:1px solid var(--line-2); border-radius:14px;
     box-shadow:0 18px 40px -18px rgba(60,40,140,.35);
   }
   .lang-menu li a{
     display:block; padding:8px 12px; border-radius:9px; text-decoration:none;
     color:var(--fg); font-size:.85rem; transition:background .15s, color .15s;
   }
-  .lang-menu li a:hover{background:rgba(124,77,255,.08); color:var(--accent-2)}
+  .lang-menu li a:hover{background:var(--menu-hover); color:var(--accent-2)}
   .lang-menu li a[aria-current="true"]{color:var(--accent-2); font-weight:600}
   .lang-menu li a[aria-current="true"]::after{content:"✓"; float:right; color:var(--accent)}
   nav.links a[aria-current="page"]{color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:6px}
@@ -140,7 +147,7 @@ const attrs = (l: (typeof links)[number]) => ({
   /* ---------- mobile menu (≤860px, where the row of links is hidden) ---------- */
   .nav-toggle{
     display:none; position:relative; width:40px; height:36px; flex:none; cursor:pointer;
-    background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:0;
+    background:var(--card-1); background:color-mix(in srgb, var(--accent-soft) 28%, var(--bg-2)); border:1px solid var(--line-2); border-radius:999px; padding:0;
     transition:border-color .2s;
   }
   .nav-toggle:hover, .nav-toggle[aria-expanded="true"]{border-color:var(--line-2)}
@@ -162,7 +169,7 @@ const attrs = (l: (typeof links)[number]) => ({
   .nav-menu{
     position:absolute; top:100%; left:max(12px, env(safe-area-inset-left,0px)); right:max(12px, env(safe-area-inset-right,0px));
     max-height:calc(100dvh - 90px); overflow-y:auto; overscroll-behavior:contain;
-    background:var(--bg-2); border:1px solid var(--line); border-radius:20px; padding:8px;
+    background:var(--card-1); background:var(--menu-bg); border:1px solid var(--line-2); border-radius:20px; padding:8px;
     box-shadow:0 24px 50px -24px rgba(60,40,140,.4), 0 0 0 100vmax rgba(43,37,69,.16);
   }
   .nav-menu[hidden]{display:none}
@@ -174,7 +181,7 @@ const attrs = (l: (typeof links)[number]) => ({
     font-family:"Archivo",sans-serif; font-weight:600; font-size:1.05rem; color:var(--fg);
     border-radius:12px; transition:background .15s, color .15s;
   }
-  .nav-menu a:hover{background:rgba(124,77,255,.06); color:var(--accent-2)}
+  .nav-menu a:hover{background:var(--menu-hover); color:var(--accent-2)}
   .nav-menu a[aria-current="page"]{color:var(--accent-2)}
   .nav-menu a[aria-current="page"]::after{content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none}
   .nav-menu a span{color:var(--accent)}
