@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>NOVARA</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,6 +11,8 @@
     --bg-grad:linear-gradient(180deg,#f6f5fd 0%, #eceaf7 42%, #ddd9ef 100%);
     --bg-2:#ffffff;        /* raised panel / card */
     --bg-3:#f5f3fd;        /* card tint */
+    --card-1:#efecfa;      /* service card, top-left (a touch deeper so white glyphs read) */
+    --card-2:#f6f4fd;      /* service card, bottom-right */
     --fg:#2b2545;          /* deep violet-slate */
     --fg-strong:#1f1a38;
     --muted:#6a6385;       /* muted slate-violet */
@@ -20,9 +23,7 @@
     --accent-2:#5a2fd0;    /* deep violet (hover/labels) */
     --accent-soft:#b9a4ff; /* light lilac */
     --glow:#9b6bff;
-    --ember:#ff7a2e;       /* flame / ember orange */
-    --ember-hot:#ffd27a;   /* flame core, glass rim light */
-    --ember-deep:#e0402a;  /* ember nodes */
+    --ember-hot:#ffd27a;   /* warm rim light on the glass glyphs */
     color-scheme: light;
     --fs-display: clamp(2.6rem, 8.5vw, 6.4rem);
     --fs-h2: clamp(1.9rem, 5vw, 3.6rem);
@@ -123,7 +124,8 @@
   .btn-ghost:hover{border-color:var(--accent); background:rgba(155,107,255,.08)}
   .hero .foot{margin-top:auto; padding-top:54px; display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; align-items:flex-end}
   .hero .foot p{color:var(--faint); max-width:34ch; font-size:.9rem; margin:0}
-  .scroll-cue{font-family:"Space Mono",monospace; font-size:.7rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; display:flex; align-items:center; gap:10px}
+  .scroll-cue{font-family:"Space Mono",monospace; font-size:.7rem; letter-spacing:.2em; color:var(--muted); text-transform:uppercase; display:flex; align-items:center; gap:10px; transition:opacity .4s}
+  .scrolled .scroll-cue{opacity:0; pointer-events:none}   /* hint only matters before the first scroll */
   .scroll-cue .bar{width:1px; height:34px; background:linear-gradient(var(--accent),transparent); display:inline-block; animation:drop 2.4s infinite}
   @keyframes drop{0%{transform:scaleY(.2);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}50.01%{transform-origin:bottom}100%{transform:scaleY(.2);transform-origin:bottom}}
 
@@ -156,12 +158,12 @@
   @media(max-width:820px){.cards{grid-template-columns:1fr}}
   .card{
     position:relative; min-width:0;
-    background:linear-gradient(160deg, var(--bg-3), var(--bg-2));
+    background:linear-gradient(160deg, var(--card-1), var(--card-2));
     border:1px solid var(--line); border-radius:20px; padding:30px 26px 32px;
     overflow:hidden; transition:transform .3s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .3s;
   }
   .card::before{content:""; position:absolute; inset:0; background:radial-gradient(120% 80% at 50% -10%, rgba(155,107,255,.14), transparent 60%); opacity:.6; transition:opacity .3s}
-  .card:hover{transform:translateY(-6px); border-color:var(--line-2); box-shadow:0 24px 60px -24px rgba(124,77,255,.55)}
+  .card:hover{transform:translateY(-6px); border-color:var(--line-2); box-shadow:0 20px 44px -30px rgba(124,77,255,.35)}
   .card:hover::before{opacity:1}
   .card:hover .glyph{transform:translateY(-4px) rotate(-3deg)}
   .glyph{width:96px; height:96px; margin-bottom:26px; transition:transform .5s cubic-bezier(.2,.7,.2,1); filter:drop-shadow(0 6px 22px rgba(124,77,255,.55))}
@@ -336,6 +338,11 @@
     revs.forEach(function(el){ el.classList.add('in'); });
   }
 
+  /* ---------- hide the scroll hint once the user scrolls ---------- */
+  function markScrolled(){ document.documentElement.classList.toggle('scrolled', window.scrollY > 40); }
+  window.addEventListener('scroll', markScrolled, {passive:true});
+  markScrolled();
+
   /* ---------- WebGL particle sphere ---------- */
   var canvas = document.getElementById('scene');
   var THREE = window.THREE;
@@ -395,8 +402,8 @@
     "}"
   ].join("\n");
 
-  // sphere -> hexagonal ring morph (second screen). Ring faces the camera (xy plane),
-  // pointy-top, hollow centre, particles biased toward the rim.
+  // sphere -> hexagonal ring morph (second screen). Ring faces the camera (xy plane), pointy-top:
+  // an outer band dense at the hexagon rim, plus (~28% of points) a darker inner ring around the hollow centre.
   var MORPH = [
     "uniform float uMorph,uSpin,uHexRot;",
     "vec3 rotY(vec3 p,float a){ float c=cos(a), s=sin(a); return vec3(c*p.x+s*p.z, p.y, -s*p.x+c*p.z); }",
@@ -404,26 +411,18 @@
     "  float th = atan(sp.y, sp.x);",
     "  float a = mod(th + 0.5235988, 1.0471976) - 0.5235988;",   // angle from nearest edge normal
     "  float rim = 1.98*0.8660254/cos(a);",                       // hexagon, circumradius 1.98
-    "  float s = 1.0 - seed.x*seed.x*0.66;",                      // 0.34..1, dense at the rim
-    "  float r = mix(0.62, rim, s) + d*amp*0.3*(1.6-s);",
-    "  float z = (seed.y-0.5)*0.75*(0.3+0.7*s) + d*amp*0.4;",
+    "  float inner = step(0.72, seed.x);",
+    "  float u = seed.x/0.72, v = (seed.x-0.72)/0.28;",
+    "  float rOut = mix(rim, 1.22, u*u) + d*amp*0.3*(0.6+u);",    // band 1.22..rim, dense at the rim
+    "  float rIn = 0.74 + (v-0.5)*0.24 + d*amp*0.25;",            // round inner ring, r ~0.62..0.86
+    "  float r = mix(rOut, rIn, inner);",
+    "  float z = mix((seed.y-0.5)*0.75*(1.0-0.5*u), (seed.y-0.5)*0.32, inner) + d*amp*0.4;",
     "  th += uHexRot;",
     "  return vec3(cos(th)*r, sin(th)*r, z);",
     "}",
     "float morphAt(float stagger){ return smoothstep(stagger*0.35, stagger*0.35+0.65, uMorph); }"
   ].join("\n");
   var morphU = { uMorph:{value:0}, uSpin:{value:0}, uHexRot:{value:0} };
-
-  // flames: up to 3 wandering hot spots (group-local positions) that heat nearby particles + edges
-  var EMBER = tok('--ember','#ff7a2e'), EMBER_HOT = tok('--ember-hot','#ffd27a'), EMBER_DEEP = tok('--ember-deep','#e0402a');
-  var HEAT = [
-    "uniform vec3 uHotP[3]; uniform float uHotI[3];",
-    "float heatAt(vec3 p){ float h=0.0; for(int k=0;k<3;k++){ vec3 q=p-uHotP[k]; h+=uHotI[k]*exp(-dot(q,q)*5.0); } return clamp(h,0.0,1.0); }"
-  ].join("\n");
-  var hotU = {
-    uHotP:{value:[new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]}, uHotI:{value:[0,0,0]},
-    uEmber:{value:new THREE.Color(EMBER)}, uEmberHot:{value:new THREE.Color(EMBER_HOT)}, uEmberDeep:{value:new THREE.Color(EMBER_DEEP)}
-  };
 
   // ---- points cloud ----
   var N = 5200;
@@ -451,8 +450,7 @@
   var uniforms = {
     uTime:{value:0}, uSize:{value:0.016}, uAmp:{value:0.30}, uPix:{value:1},
     uColor:{value:new THREE.Color(0x5a2cc2)}, uColor2:{value:new THREE.Color(0x9b6bff)},
-    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot,
-    uHotP:hotU.uHotP, uHotI:hotU.uHotI, uEmber:hotU.uEmber, uEmberHot:hotU.uEmberHot, uEmberDeep:hotU.uEmberDeep
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
   };
   var pMat = new THREE.ShaderMaterial({
     uniforms:uniforms, transparent:true, depthWrite:false, depthTest:false,
@@ -461,8 +459,8 @@
       "attribute float aScale;",
       "attribute vec2 aSeed;",
       "uniform float uTime,uSize,uAmp,uPix;",
-      "varying float vGlow, vHeat, vEmber;",
-      SNOISE, DISP, MORPH, HEAT,
+      "varying float vGlow;",
+      SNOISE, DISP, MORPH,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
@@ -470,28 +468,23 @@
       "  vec3 sphereP = sp + rotY(dir,uSpin)*d*uAmp;",
       "  float m = morphAt(aSeed.y);",
       "  vec3 p = mix(sphereP, hexPos(sp,aSeed,d,uAmp), m);",
-      "  vGlow = min(smoothstep(-0.15,0.6,d) + m*smoothstep(0.75,1.0,1.0-aSeed.x)*0.35, 1.0);", // rim a touch brighter
-      "  vHeat = heatAt(p);",
-      // ~4% of nodes are glowing embers that flicker (the red dots on the reference mesh)
-      "  vEmber = step(0.96, fract(aSeed.x*37.17+aSeed.y*11.3)) * (0.55+0.45*sin(uTime*(3.0+aSeed.y*5.0)+aSeed.x*40.0));",
+      "  float inner = step(0.72, aSeed.x)*m;",
+      "  vGlow = min(smoothstep(-0.15,0.6,d) + m*smoothstep(0.75,1.0,1.0-aSeed.x)*0.35, 1.0)*(1.0-inner);", // bright rim, deep inner ring
       "  vec4 mv = modelViewMatrix*vec4(p,1.0);",
       "  gl_Position = projectionMatrix*mv;",
-      "  gl_PointSize = uSize*aScale*uPix*(1.0/-mv.z)*(1.0 + vHeat*1.8 + vEmber*0.9);",
+      "  gl_PointSize = uSize*aScale*uPix*(1.0/-mv.z)*(1.0 + inner*0.7);",
       "}"
     ].join("\n"),
     fragmentShader:[
       "precision mediump float;",
-      "uniform vec3 uColor,uColor2,uEmber,uEmberHot,uEmberDeep;",
-      "varying float vGlow, vHeat, vEmber;",
+      "uniform vec3 uColor,uColor2;",
+      "varying float vGlow;",
       "void main(){",
       "  float d = length(gl_PointCoord-0.5);",
       "  if(d>0.5) discard;",
       "  float a = smoothstep(0.5,0.0,d);",
       "  vec3 col = mix(uColor,uColor2,vGlow);",
-      "  col = mix(col, uEmberDeep, vEmber);",
-      "  col = mix(col, uEmber, smoothstep(0.05,0.5,vHeat));",
-      "  col = mix(col, uEmberHot, smoothstep(0.55,1.0,vHeat));",
-      "  gl_FragColor = vec4(col, max(a*(0.5+vGlow*0.45), a*max(vEmber,vHeat)));",
+      "  gl_FragColor = vec4(col, a*(0.5+vGlow*0.45));",
       "}"
     ].join("\n")
   });
@@ -502,37 +495,60 @@
   var ig = new THREE.IcosahedronGeometry(1.80, 3);
   var wUniforms = {
     uTime:{value:0}, uAmp:{value:0.30}, uColor:{value:new THREE.Color(0x7c4dff)}, uOpacity:{value:0.10},
-    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot,
-    uHotP:hotU.uHotP, uHotI:hotU.uHotI, uEmber:hotU.uEmber
+    uMorph:morphU.uMorph, uSpin:morphU.uSpin, uHexRot:morphU.uHexRot
   };
   var wMat = new THREE.ShaderMaterial({
     uniforms:wUniforms, transparent:true, depthWrite:false, wireframe:true,
     blending:THREE.NormalBlending,
     vertexShader:[
-      "uniform float uTime,uAmp;", "varying float vA, vHeat;",
-      SNOISE, DISP, MORPH, HEAT,
+      "uniform float uTime,uAmp;", "varying float vA;",
+      SNOISE, DISP, MORPH,
       "void main(){",
       "  vec3 dir = normalize(position);",
       "  float d = dispFn(dir,uTime);",
       "  vec3 sp = rotY(position,uSpin);",
       // smooth (noise-based) seeds keep neighbouring vertices together -> a coherent web on the rim
       "  vec2 seed = clamp(vec2(snoise(dir*1.6)*0.6+0.45, snoise(dir*2.3+7.1)*0.5+0.5), 0.0, 1.0);",
+      "  seed.x *= 0.7;",   // outer band only; the inner layer has its own ring below
       "  float m = morphAt(seed.y);",
       "  vec3 p = mix(sp + rotY(dir,uSpin)*d*uAmp, hexPos(sp,seed,d,uAmp), m);",
       // vertices near the view-axis poles fan out into spokes across the hole once flattened -> hide them
       "  vA = mix(1.0, smoothstep(0.25,0.6,length(sp.xy)/length(sp)), m);",
-      "  vHeat = heatAt(p);",
       "  gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);",
       "}"
     ].join("\n"),
     fragmentShader:[
       "precision mediump float;",
-      "uniform vec3 uColor,uEmber; uniform float uOpacity; varying float vA, vHeat;",
-      "void main(){ gl_FragColor = vec4(mix(uColor,uEmber,vHeat), (uOpacity + vHeat*0.55)*vA); }"
+      "uniform vec3 uColor; uniform float uOpacity; varying float vA;",
+      "void main(){ gl_FragColor = vec4(uColor,uOpacity*vA); }"
     ].join("\n")
   });
   var wire = new THREE.Mesh(ig, wMat);
   group.add(wire);
+
+  // ---- inner ring web (second layer inside the hexagon, fades in with the morph) ----
+  var iwU = { uTime:wUniforms.uTime, uAmp:wUniforms.uAmp, uHexRot:morphU.uHexRot,
+              uColor:{value:new THREE.Color(tok('--accent-2','#5a2fd0'))}, uOpacity:{value:0} };
+  var innerWire = new THREE.Mesh(new THREE.TorusGeometry(0.76, 0.17, 5, 40), new THREE.ShaderMaterial({
+    uniforms:iwU, transparent:true, depthWrite:false, wireframe:true, blending:THREE.NormalBlending,
+    vertexShader:[
+      "uniform float uTime,uAmp,uHexRot;",
+      SNOISE, DISP,
+      "void main(){",
+      "  float d = dispFn(normalize(position)*1.4, uTime);",
+      "  vec3 p = position*(1.0 + d*uAmp*0.7);",
+      "  float c = cos(uHexRot*-1.6), s = sin(uHexRot*-1.6);",   // counter-rotates against the hexagon
+      "  p.xy = mat2(c,s,-s,c)*p.xy;",
+      "  gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);",
+      "}"
+    ].join("\n"),
+    fragmentShader:[
+      "precision mediump float;",
+      "uniform vec3 uColor; uniform float uOpacity;",
+      "void main(){ gl_FragColor = vec4(uColor,uOpacity); }"
+    ].join("\n")
+  }));
+  group.add(innerWire);
 
   // ---- core glow sprite ----
   var cc = document.createElement('canvas'); cc.width=cc.height=256;
@@ -561,95 +577,6 @@
     group.add(l); rings.push(l);
   });
 
-  // ---- flames: sprite clusters riding on a particle, heating the mesh around it ----
-  var fc = document.createElement('canvas'); fc.width = fc.height = 128;
-  var fx = fc.getContext('2d');
-  var fgr = fx.createRadialGradient(64,64,0,64,64,64);
-  fgr.addColorStop(0, rgba(tok('--bg-2','#fff'),1));
-  fgr.addColorStop(0.16, rgba(EMBER_HOT,0.95));
-  fgr.addColorStop(0.45, rgba(EMBER,0.5));
-  fgr.addColorStop(1, rgba(EMBER,0));
-  fx.fillStyle = fgr; fx.fillRect(0,0,128,128);
-  var flameTex = new THREE.CanvasTexture(fc);
-  function flameSprite(){
-    var s = new THREE.Sprite(new THREE.SpriteMaterial({map:flameTex, transparent:true, opacity:0, blending:THREE.NormalBlending, depthWrite:false, depthTest:false}));
-    s.visible = false; return s;
-  }
-  var bursts = [];
-  for(var b=0;b<3;b++){
-    var bg = new THREE.Group(), licks = [];
-    for(var j=0;j<10;j++){
-      var sp = flameSprite();
-      sp.userData = { o:new THREE.Vector3((Math.random()-.5)*.3, (Math.random()-.5)*.22, (Math.random()-.5)*.2),
-                      ph:Math.random()*6.28, sz:0.08+Math.random()*0.16, st:1+Math.random()*0.8, up:Math.random()*0.3 };
-      bg.add(sp); licks.push(sp);
-    }
-    group.add(bg);
-    bursts.push({ g:bg, licks:licks, idx:0, life:1, dur:2, wait:0.4+b*0.9, big:0 });
-  }
-  var flash = flameSprite(); group.add(flash); var flashV = 0;
-
-  // same mapping as the shaders (minus noise), so a flame stays glued to its particle through the morph
-  var PI3 = Math.PI/3, PI6 = Math.PI/6;
-  function particleLocal(i, out){
-    var x=pos[i*3], y=pos[i*3+1], z=pos[i*3+2], a=morphU.uSpin.value, c=Math.cos(a), s=Math.sin(a);
-    var sx=c*x+s*z, sy=y, sz=-s*x+c*z, sa=seeds[i*2], sb=seeds[i*2+1];
-    var m = smooth(sb*0.35, sb*0.35+0.65, morph);
-    out.set(sx*1.06, sy*1.06, sz*1.06);
-    if(m>0){
-      var th = Math.atan2(sy,sx);
-      var ang = (((th+PI6)%PI3)+PI3)%PI3 - PI6;
-      var ss = 1 - sa*sa*0.66, r = 0.62 + (1.98*0.8660254/Math.cos(ang) - 0.62)*ss;
-      th += morphU.uHexRot.value;
-      out.lerp(new THREE.Vector3(Math.cos(th)*r, Math.sin(th)*r, (sb-0.5)*0.75*(0.3+0.7*ss)), m);
-    }
-    return out;
-  }
-  var tmpV = new THREE.Vector3();
-  function pickParticle(){
-    for(var k=0;k<40;k++){
-      var i = (Math.random()*N)|0;
-      particleLocal(i, tmpV);
-      if(morph>0.5 ? seeds[i*2] < 0.5 : tmpV.z > 1.0) return i;   // rim of the hexagon / front of the sphere
-    }
-    return i;
-  }
-  function updateFlames(dt, t){
-    bursts.forEach(function(b, k){
-      if(b.wait > 0){
-        b.wait -= dt; hotU.uHotI.value[k] = 0; b.g.visible = false;
-        if(b.wait <= 0){ b.life = 0; b.dur = 1.3+Math.random()*1.3; b.idx = pickParticle(); }
-        return;
-      }
-      b.life += dt/b.dur;
-      if(b.life >= 1){ b.wait = 0.25+Math.random()*1.1; b.big = 0; return; }
-      var I = smooth(0,0.12,b.life)*(1-smooth(0.5,1,b.life))*(1+b.big*0.3);
-      particleLocal(b.idx, b.g.position);
-      b.g.visible = true;
-      hotU.uHotP.value[k].copy(b.g.position);
-      hotU.uHotI.value[k] = I*(0.85+0.15*Math.sin(t*23+k*2.1));
-      b.licks.forEach(function(s){
-        var u = s.userData, f = 0.75+0.25*Math.sin(t*9*u.st+u.ph);
-        s.position.copy(u.o).multiplyScalar(1+b.life*0.8*(1+b.big));
-        s.position.y += b.life*u.up;
-        var sc = u.sz*I*f*(1+b.big*0.5);
-        s.scale.set(sc*(1.25+0.3*Math.sin(t*7+u.ph)), sc, 1);
-        s.material.opacity = Math.min(1, I*(0.55+0.45*Math.sin(t*13*u.st+u.ph*2)));
-        s.visible = true;
-      });
-    });
-    // big flash in the hollow centre as the sphere turns into the hexagon
-    flashV = Math.max(0, flashV - dt/1.3);
-    flash.visible = flashV > 0;
-    var fs = 1.5*smooth(0,0.25,1-flashV)*flashV + 0.2*flashV;
-    flash.scale.set(fs*1.2, fs, 1);
-    flash.material.opacity = Math.min(0.9, flashV);
-  }
-  function igniteAll(){
-    flashV = 1;
-    bursts.forEach(function(b){ b.wait = 0; b.life = 0; b.dur = 1.6+Math.random()*0.6; b.big = 1; b.idx = pickParticle(); });
-  }
-
   // ---- resize ----
   function resize(){
     var w = window.innerWidth, h = window.innerHeight;
@@ -674,7 +601,7 @@
   }, {passive:true});
 
   // ---- scroll drive ----
-  var scrollP = 0, morphTarget = 0, morph = 0, prevMorph = 0, exitP = 0;
+  var scrollP = 0, morphTarget = 0, morph = 0, exitP = 0;
   function onScroll(){
     var vh = window.innerHeight;
     scrollP = Math.min(window.scrollY / (vh*1.6), 1); // 0..1 across hero->about
@@ -702,10 +629,7 @@
     // morph eases toward the scroll target (smooths wheel steps); per-particle stagger lives in the shader
     morph = reduce ? morphTarget : morph + (morphTarget - morph)*Math.min(1, dt*4.5);
     morphU.uMorph.value = morph;
-    if(!reduce && prevMorph < 0.4 && morph >= 0.4) igniteAll();
-    prevMorph = morph;
     if(exitP >= 1) return;               // fully covered by the services panel
-    if(!reduce) updateFlames(dt, t);
 
     // amplitude grows a little with scroll (gentle "bloom" on the about section)
     var amp = 0.30 + scrollP*0.26 - morph*0.12;
@@ -713,6 +637,10 @@
     wUniforms.uAmp.value = amp;
     wUniforms.uOpacity.value = 0.10 + scrollP*0.12 + morph*0.06;
     rings.forEach(function(l){ l.material.opacity = l.userData.base*morph; });
+    var im = smooth(0.45, 1, morph);
+    iwU.uOpacity.value = 0.17*im;
+    innerWire.visible = im > 0;
+    innerWire.scale.setScalar(0.55 + 0.45*im);
 
     // core pulse
     var pulse = reduce ? 2.4 : 2.4 + Math.sin(t*1.4)*0.22 + scrollP*0.5;
@@ -744,7 +672,9 @@
   function initGlyphs(){
     var els = [].slice.call(document.querySelectorAll('.glyph[data-shape]'));
     if(!els.length) return;
-    var GLASS = tok('--bg-2','#fff'), RIM = tok('--ember-hot','#ffd27a'), FILL = tok('--accent-soft','#b9a4ff'), SHADOW = tok('--accent-2','#5a2fd0');
+    var WHITE = tok('--bg-2','#fff'), RIM = tok('--ember-hot','#ffd27a'), FILL = tok('--accent-soft','#b9a4ff'), SHADOW = tok('--accent-2','#5a2fd0');
+    var GLASS = new THREE.Color(WHITE).lerp(new THREE.Color(FILL), 0.3);
+    var GLASS_OPACITY = 0.5;   // see-through glass
     var DEPTH = 0.16, TAU = Math.PI*2;
 
     function ext(shape){
@@ -792,21 +722,21 @@
 
       var sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(27, 1, 0.1, 50);
       cam.position.set(0, 0, 7.2);
-      sc.add(new THREE.HemisphereLight(GLASS, FILL, 0.55));
-      var key = new THREE.DirectionalLight(GLASS, 0.6);
-      key.position.set(-2.5, 3.2, 5); key.castShadow = true;
-      key.shadow.mapSize.set(1024,1024); key.shadow.bias = -0.0005; key.shadow.radius = 9;
+      sc.add(new THREE.HemisphereLight(WHITE, new THREE.Color(WHITE).lerp(new THREE.Color(FILL), 0.35), 0.5));   // near-neutral, dimmed fill: no lilac streaks on bevels
+      var key = new THREE.DirectionalLight(WHITE, 0.35);
+      key.position.set(-1.2, 1.8, 6);   // near-frontal: shadow sits close behind, no 'second copy' key.castShadow = true;
+      key.shadow.mapSize.set(1024,1024); key.shadow.bias = -0.0005; key.shadow.radius = 14;
       var sca = key.shadow.camera; sca.left = sca.bottom = -3; sca.right = sca.top = 3; sca.near = 1; sca.far = 15;
       sc.add(key);
       // grazing warm lights pick out the bevels -> golden edges
-      var rim = new THREE.PointLight(RIM, 3.6, 9); rim.position.set(2.8, -2.2, 0.6); sc.add(rim);
-      var rim2 = new THREE.PointLight(RIM, 1.9, 9); rim2.position.set(-2.6, 2.4, 0.4); sc.add(rim2);
-      var floor = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.ShadowMaterial({color:SHADOW, opacity:0.12}));
-      floor.position.z = -1.0; floor.receiveShadow = true; sc.add(floor);
+      var rim = new THREE.PointLight(RIM, 0.35, 9); rim.position.set(2.8, -2.2, 0.6); sc.add(rim);
+      var rim2 = new THREE.PointLight(RIM, 0.15, 9); rim2.position.set(-2.6, 2.4, 0.4); sc.add(rim2);
+      var floor = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.ShadowMaterial({color:SHADOW, opacity:0.06}));
+      floor.position.z = -0.8; floor.receiveShadow = true; sc.add(floor);
 
       var holder = new THREE.Group(); sc.add(holder);
       var pieces = make().map(function(p, k){
-        var mat = new THREE.MeshPhysicalMaterial({color:GLASS, roughness:0.16, metalness:0, clearcoat:1, clearcoatRoughness:0.08, transparent:true, opacity:0});
+        var mat = new THREE.MeshStandardMaterial({color:GLASS, roughness:0.65, metalness:0, transparent:true, opacity:0, depthWrite:false});   // matte = no glare
         var mesh = new THREE.Mesh(p.geo, mat); mesh.castShadow = true; holder.add(mesh);
         return {mesh:mesh, x:p.x||0, y:p.y||0, z:p.z||0, spin:p.spin||0, k:k};
       });
@@ -867,7 +797,7 @@
           var s = 0.85 + 0.15*e;
           p.mesh.scale.set(s, s, 0.05 + 0.95*e);          // starts as a flat outline, extrudes as it builds
           p.mesh.rotation.z = -(1-e)*0.8 + t*p.spin;
-          p.mesh.material.opacity = 0.86*Math.min(1, e*1.4);
+          p.mesh.material.opacity = GLASS_OPACITY*Math.min(1, e*1.4);
         });
         it.holder.rotation.x = -it.hy*0.6 + Math.sin(t*0.6 + ci)*0.08;
         it.holder.rotation.y = it.hx*0.8 + Math.sin(t*0.45 + ci*1.3)*0.18;
