@@ -1,0 +1,94 @@
+---
+import { languages, langs, localePath, useTranslations, type Lang } from '../i18n/utils';
+import { SITE } from '../site';
+
+interface Props {
+  lang: Lang;
+  current?: 'home' | 'blog' | 'about';
+  /** this page in each language, for the language menu */
+  alternates: Record<Lang, string>;
+}
+const { lang, current, alternates } = Astro.props;
+const t = useTranslations(lang);
+const home = localePath(lang, '/');
+---
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href={home}><span class="dot"></span>{SITE.name}</a>
+    <nav class="links" aria-label="Primary">
+      <a href={home} aria-current={current === 'home' ? 'page' : undefined}>{t('nav.home')}</a>
+      <a href={`${home}#about`}>{t('nav.studio')}</a>
+      <a href={`${home}#services`}>{t('nav.services')}</a>
+      <a href={localePath(lang, '/blog/')} aria-current={current === 'blog' ? 'page' : undefined}>{t('nav.blog')}</a>
+      <a href={localePath(lang, '/about/')} aria-current={current === 'about' ? 'page' : undefined}>{t('nav.about')}</a>
+      <a href={SITE.github} target="_blank" rel="noopener">{t('nav.contact')}</a>
+    </nav>
+    <div class="nav-right">
+      <details class="lang-menu">
+        <summary aria-label={t('nav.language')}>
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 0c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9m0-18c-2.5 2.6-3.7 5.6-3.7 9s1.2 6.4 3.7 9M3.6 9h16.8M3.6 15h16.8"/></svg>
+          <span>{languages[lang]}</span>
+          <svg class="chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M2.5 4.5L6 8l3.5-3.5"/></svg>
+        </summary>
+        <ul>
+          {langs.map((l) => (
+            <li>
+              <a href={alternates[l]} hreflang={l} lang={l} data-lang={l} aria-current={l === lang ? 'true' : undefined}>{languages[l]}</a>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <a class="nav-cta" href={SITE.github} target="_blank" rel="noopener">{t('nav.cta')}</a>
+    </div>
+  </div>
+</header>
+
+<script is:inline>
+  (function(){
+    var KEY = 'fp-lang';
+    var menu = document.querySelector('.lang-menu');
+    // remember the visitor's language; the bare English homepage sends returning ja/zh visitors to theirs
+    document.querySelectorAll('.lang-menu a').forEach(function(a){
+      a.addEventListener('click', function(){ try{ localStorage.setItem(KEY, a.getAttribute('data-lang')); }catch(e){} });
+    });
+    try{
+      var saved = localStorage.getItem(KEY);
+      if(location.pathname === '/' && (saved === 'ja' || saved === 'zh')) location.replace('/' + saved + '/' + location.hash);
+    }catch(e){}
+    // close the menu on outside click or Escape
+    if(menu){
+      document.addEventListener('click', function(e){ if(menu.open && !menu.contains(e.target)) menu.open = false; });
+      document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && menu.open){ menu.open = false; menu.querySelector('summary').focus(); } });
+    }
+  })();
+</script>
+
+<style is:global>
+  .nav-right{display:flex; align-items:center; gap:12px}
+  .lang-menu{position:relative}
+  .lang-menu summary{
+    list-style:none; cursor:pointer; user-select:none;
+    display:flex; align-items:center; gap:7px;
+    font-family:"Space Mono",monospace; font-size:.72rem; letter-spacing:.04em; color:var(--muted);
+    border:1px solid var(--line); border-radius:999px; padding:8px 12px; transition:color .2s, border-color .2s;
+  }
+  .lang-menu summary::-webkit-details-marker{display:none}
+  .lang-menu summary:hover, .lang-menu[open] summary{color:var(--fg); border-color:var(--line-2)}
+  .lang-menu .chev{transition:transform .2s}
+  .lang-menu[open] .chev{transform:rotate(180deg)}
+  .lang-menu ul{
+    position:absolute; right:0; top:calc(100% + 8px); z-index:30; min-width:140px;
+    list-style:none; margin:0; padding:6px;
+    background:var(--bg-2); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 18px 40px -18px rgba(60,40,140,.35);
+  }
+  .lang-menu li a{
+    display:block; padding:8px 12px; border-radius:9px; text-decoration:none;
+    color:var(--fg); font-size:.85rem; transition:background .15s, color .15s;
+  }
+  .lang-menu li a:hover{background:rgba(124,77,255,.08); color:var(--accent-2)}
+  .lang-menu li a[aria-current="true"]{color:var(--accent-2); font-weight:600}
+  .lang-menu li a[aria-current="true"]::after{content:"✓"; float:right; color:var(--accent)}
+  nav.links a[aria-current="page"]{color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:6px}
+  @media(max-width:520px){ .nav-right .nav-cta{display:none} }
+</style>

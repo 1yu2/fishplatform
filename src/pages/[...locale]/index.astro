@@ -1,0 +1,25 @@
+---
+import Base from '../../layouts/Base.astro';
+import Home from '../../components/Home.astro';
+import { langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../i18n/utils';
+
+export const getStaticPaths = localeStaticPaths;
+const { lang } = Astro.props as { lang: Lang };
+const t = useTranslations(lang);
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/')])) as Record<Lang, string>;
+---
+<Base lang={lang} title={t('meta.home')} path="/">
+  <script is:inline slot="head">
+  (function(){
+    var d = document.documentElement;
+    try{
+      if(sessionStorage.getItem('fp-intro')) return;
+      if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    }catch(e){}
+    d.classList.add('intro-on');
+    // safety: if the intro can't start (script/CDN failure), never leave the page covered; the intro cancels this once running
+    window.__introSafety = setTimeout(function(){ d.classList.remove('intro-on'); }, 6000);
+  })();
+</script>
+  <Home lang={lang} alternates={alternates} />
+</Base>

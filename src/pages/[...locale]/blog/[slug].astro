@@ -1,0 +1,177 @@
+---
+import '../../../styles/site.css';
+import { render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import { SITE } from '../../../site';
+import { defaultLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate, getPosts, postPath, readingMinutes, type Post } from '../../../lib/posts';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return posts.map((post) => ({
+    params: { locale: post.data.lang === defaultLang ? undefined : post.data.lang, slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props as { post: Post };
+const lang = post.data.lang as Lang;
+const t = useTranslations(lang);
+const { Content, headings } = await render(post);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+
+const all = await getPosts();
+// translations share a translationKey; the switcher goes to the translation, or that language's blog list
+const translations = post.data.translationKey
+  ? all.filter((p) => p.id !== post.id && p.data.translationKey === post.data.translationKey)
+  : [];
+const alternates = Object.fromEntries(
+  langs.map((l) => {
+    if (l === lang) return [l, postPath(post)];
+    const tr = translations.find((p) => p.data.lang === l);
+    return [l, tr ? postPath(tr) : localePath(l, '/blog/')];
+  }),
+) as Record<Lang, string>;
+
+// newer / older among posts in the same language
+const same = all.filter((p) => p.data.lang === lang);
+const i = same.findIndex((p) => p.id === post.id);
+const newer = i > 0 ? same[i - 1] : undefined;
+const older = i >= 0 && i < same.length - 1 ? same[i + 1] : undefined;
+
+const canonical = post.data.canonical ?? new URL(postPath(post), Astro.site).href;
+const origin = post.data.canonical ? new URL(post.data.canonical).hostname.replace(/^www\./, '') : '';
+---
+<Base lang={lang} title={`${post.data.title} — ${SITE.name}`} description={post.data.summary} alternates={alternates}>
+  <link slot="head" rel="canonical" href={canonical} />
+  <Nav lang={lang} current="blog" alternates={alternates} />
+
+  <main class="wrap">
+    <div class="post-grid">
+      <article class="post">
+        <a class="back" href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
+        <header>
+          <div class="meta">
+            <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date, lang)}</time>
+            <span>· {t('blog.minRead', { n: readingMinutes(post.body) })}</span>
+          </div>
+          <h1 class="page-title">{post.data.title}</h1>
+          <p class="page-lead">{post.data.summary}</p>
+          <div class="tags">{post.data.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
+          {translations.length > 0 && (
+            <p class="also">{t('blog.alsoIn')}: {translations.map((p) => <a href={postPath(p)} lang={p.data.lang}>{languages[p.data.lang]}</a>)}</p>
+          )}
+        </header>
+
+        <div class="prose">
+          <Content />
+        </div>
+
+        {post.data.canonical && (
+          <p class="origin">{t('blog.originally')} <a href={post.data.canonical} rel="noopener">{origin}</a></p>
+        )}
+
+        <nav class="pager" aria-label="Posts">
+          {newer ? <a class="newer" href={postPath(newer)}><span>← {t('blog.newer')}</span>{newer.data.title}</a> : <span />}
+          {older ? <a class="older" href={postPath(older)}><span>{t('blog.older')} →</span>{older.data.title}</a> : <span />}
+        </nav>
+      </article>
+
+      {toc.length > 1 && (
+        <aside class="toc" aria-label={t('blog.toc')}>
+          <div class="toc-inner">
+            <p class="toc-title">{t('blog.toc')}</p>
+            <ol>
+              {toc.map((h) => <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>)}
+            </ol>
+          </div>
+        </aside>
+      )}
+    </div>
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
+    </footer>
+  </main>
+</Base>
+
+<script is:inline>
+  // highlight the section being read in the table of contents
+  (function(){
+    var links = [].slice.call(document.querySelectorAll('.toc a'));
+    if(!links.length || !('IntersectionObserver' in window)) return;
+    var map = {};
+    links.forEach(function(a){ map[decodeURIComponent(a.getAttribute('href').slice(1))] = a; });
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(!e.isIntersecting) return;
+        links.forEach(function(a){ a.removeAttribute('aria-current'); });
+        var a = map[e.target.id]; if(a) a.setAttribute('aria-current', 'true');
+      });
+    }, {rootMargin:'-20% 0px -70% 0px'});
+    document.querySelectorAll('.prose h2[id], .prose h3[id]').forEach(function(h){ io.observe(h); });
+  })();
+</script>
+
+<style>
+  .post-grid{display:grid; grid-template-columns:minmax(0,760px) minmax(0,1fr); gap:clamp(30px,6vw,90px); padding-top:120px}
+  @media(max-width:1100px){ .post-grid{grid-template-columns:minmax(0,1fr)} .toc{display:none} }
+  .back{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); text-decoration:none}
+  .back:hover{color:var(--accent-2)}
+  header{margin-top:26px}
+  .meta{display:flex; gap:8px; font-family:var(--font-mono); font-size:.74rem; color:var(--faint)}
+  .post .page-title{font-size:clamp(2rem, 4.6vw, 3.4rem); line-height:1.08; max-width:none}
+  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:18px}
+  .also{font-size:.85rem; color:var(--muted); margin:16px 0 0}
+  .also a{color:var(--accent-2); margin-left:6px}
+
+  /* ---------- article body ---------- */
+  .prose{margin-top:44px; padding-top:34px; border-top:1px solid var(--line); font-size:1.06rem; line-height:1.85; color:var(--fg)}
+  .prose :global(h2){font-family:var(--font-display); font-weight:700; font-size:1.6rem; line-height:1.25; color:var(--fg-strong); margin:2.2em 0 .6em; scroll-margin-top:90px}
+  .prose :global(h3){font-family:var(--font-display); font-weight:600; font-size:1.2rem; color:var(--fg-strong); margin:1.8em 0 .5em; scroll-margin-top:90px}
+  .prose :global(p){margin:0 0 1.15em}
+  .prose :global(a){color:var(--accent-2); text-decoration-color:var(--accent-soft); text-underline-offset:3px}
+  .prose :global(strong){color:var(--fg-strong)}
+  .prose :global(ul), .prose :global(ol){padding-left:1.3em; margin:0 0 1.2em}
+  .prose :global(li){margin:.3em 0}
+  .prose :global(li::marker){color:var(--accent)}
+  .prose :global(blockquote){margin:1.4em 0; padding:.2em 0 .2em 1.1em; border-left:3px solid var(--accent-soft); color:var(--muted)}
+  .prose :global(img){max-width:100%; height:auto; border-radius:14px; border:1px solid var(--line)}
+  .prose :global(hr){border:0; border-top:1px solid var(--line); margin:2.4em 0}
+  .prose :global(table){width:100%; border-collapse:collapse; font-size:.92rem; margin:0 0 1.4em; display:block; overflow-x:auto}
+  .prose :global(th), .prose :global(td){border-bottom:1px solid var(--line); padding:8px 10px; text-align:left}
+  .prose :global(th){font-family:var(--font-mono); font-size:.75rem; letter-spacing:.06em; color:var(--muted); font-weight:400}
+  .prose :global(:not(pre) > code){font-family:var(--font-code); font-size:.88em; color:var(--accent-2); background:rgba(124,77,255,.08); border-radius:6px; padding:.12em .4em}
+  .prose :global(pre){
+    font-family:var(--font-code); font-size:.86rem; line-height:1.65;
+    background:var(--bg-2) !important; border:1px solid var(--line); border-radius:16px;
+    padding:18px 20px; margin:0 0 1.5em; overflow-x:auto;
+    box-shadow:0 18px 40px -32px rgba(124,77,255,.45);
+  }
+
+  .origin{margin-top:40px; font-size:.85rem; color:var(--faint); font-family:var(--font-mono)}
+  .origin a{color:var(--accent-2)}
+
+  .pager{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:60px}
+  .pager a{
+    display:block; padding:18px 20px; border:1px solid var(--line); border-radius:16px; text-decoration:none;
+    color:var(--fg-strong); background:linear-gradient(160deg, var(--card-1), var(--card-2)); font-weight:600; line-height:1.35;
+    transition:border-color .2s, transform .2s;
+  }
+  .pager a:hover{border-color:var(--line-2); transform:translateY(-2px)}
+  .pager span{display:block; font-family:var(--font-mono); font-weight:400; font-size:.7rem; letter-spacing:.06em; color:var(--faint); margin-bottom:6px}
+  .pager .older{text-align:right; grid-column:2}
+  @media(max-width:600px){ .pager{grid-template-columns:1fr} .pager .older{grid-column:1; text-align:left} }
+
+  /* ---------- table of contents ---------- */
+  .toc{position:relative}
+  .toc-inner{position:sticky; top:110px; margin-top:150px; padding-left:18px; border-left:1px solid var(--line)}
+  .toc-title{font-family:var(--font-mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 12px}
+  .toc ol{list-style:none; margin:0; padding:0}
+  .toc li{margin:7px 0; font-size:.86rem; line-height:1.4}
+  .toc li.d3{padding-left:14px; font-size:.8rem}
+  .toc a{color:var(--muted); text-decoration:none; transition:color .2s}
+  .toc a:hover, .toc a[aria-current]{color:var(--accent-2)}
+</style>

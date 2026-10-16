@@ -3,3 +3,5 @@ node_modules/
 .vercel
 ref.mov
 ref2.mov
+dist/
+.astro/

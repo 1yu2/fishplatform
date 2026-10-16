@@ -1,0 +1,13 @@
+---
+import Base from '../../layouts/Base.astro';
+import About from '../../components/About.astro';
+import { langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../i18n/utils';
+
+export const getStaticPaths = localeStaticPaths;
+const { lang } = Astro.props as { lang: Lang };
+const t = useTranslations(lang);
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/about/')])) as Record<Lang, string>;
+---
+<Base lang={lang} title={t('meta.about')} description={t('meta.aboutDesc')} path="/about/">
+  <About lang={lang} alternates={alternates} />
+</Base>

@@ -1,0 +1,32 @@
+---
+import { htmlLang, langs, localePath, type Lang } from '../i18n/utils';
+
+interface Props {
+  lang: Lang;
+  title: string;
+  description?: string;
+  /** this page's URL in each language (defaults to the same path under each locale prefix) */
+  alternates?: Partial<Record<Lang, string>>;
+  /** path of this page without the locale prefix, used for default alternates */
+  path?: string;
+}
+const { lang, title, description, alternates, path = '/' } = Astro.props;
+const alts = Object.fromEntries(langs.map((l) => [l, alternates?.[l] ?? localePath(l, path)])) as Record<Lang, string>;
+---
+<!doctype html>
+<html lang={htmlLang[lang]}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{title}</title>
+  {description && <meta name="description" content={description}>}
+  {langs.map((l) => <link rel="alternate" hreflang={htmlLang[l]} href={new URL(alts[l], Astro.site)} />)}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <slot name="head" />
+</head>
+<body>
+  <slot />
+</body>
+</html>

@@ -1,24 +1,30 @@
 # fishplatform — 个人网站 / 作品集
 
-单页个人站。首屏是一个 WebGL 粒子球(浅紫主题),下接工作室介绍、服务卡片、联系 CTA。
+个人站(Astro,三语 EN/日本語/中文)。首页首屏是 WebGL 粒子球(浅紫主题),下接工作室介绍、服务卡片、联系 CTA;另有 About 页和博客。
 目前是「粗版可用」阶段,后续要对着参考录屏把动画打磨到位,并把占位文案换成真实作品集内容。
 
 ## 线上 / 部署
 - 线上地址:https://fishplatform.vercel.app/
 - 仓库:https://github.com/1yu2/fishplatform （main 分支）
 - 部署链路:改代码 → `git push` 到 main → Vercel 自动部署（Vercel↔GitHub 已配好）
-- 纯静态,无构建步骤。Vercel 项目设置:Framework = Other,Build Command 留空,Root = ./
+- **Astro 静态站,有构建步骤**:`vercel.json` 里写明 framework=astro、`npm run build`、输出 `dist/`,并把旧的 `/about.html`、`/index.html` 301 到新地址。
+- 大改动先在分支上做:推分支会生成 Vercel 预览地址,确认后再合到 main。
 
 ## 技术栈 / 文件
-- `index.html` —— 全部内容(HTML + CSS + JS)都在这一个文件里,单文件自包含
-- Three.js r128,通过 cdnjs 引入:`https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js`
-- Google Fonts:Archivo(标题)/ Hanken Grotesk(正文)/ Space Mono(标签、等宽数字)
-- 本地预览:浏览器直接打开 index.html,或 `npx serve .`
+- **Astro 5.18.2**(本机 Node 22.19;Astro 7 需要 Node ≥ 22.22,升级 Node 后再考虑升 Astro)。
+- 页面路由 `src/pages/[...locale]/…`:同一份模板生成 `/`(英文)、`/ja/`、`/zh/`;`localeStaticPaths()` 见 `src/i18n/utils.ts`。
+- 界面文案全部在 `src/i18n/ui.ts`(en / ja / zh 三份字典),页面里用 `t('key')`。**新增文案要三种语言一起加。**
+- `src/components/Home.astro` / `About.astro`:原 index.html / about.html 搬过来的,CSS(`<style is:global>`)和动画脚本(`<script is:inline>`)保持原样,只把文字换成 `t()`。首页 intro 的防闪 boot 脚本在 `[...locale]/index.astro` 的 head slot 里。
+- `src/components/Nav.astro`:共享导航 + 语言切换(记住选择,`/` 会把选过 ja/zh 的访客送回对应语言)。
+- 博客:`src/content.config.ts`(schema)、`src/content/blog/<slug>/index.md`、列表 `[...locale]/blog/index.astro`、文章 `[...locale]/blog/[slug].astro`;内容页公共样式 `src/styles/site.css`。
+- 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
+- Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体。
+- 本地:`npm run dev`(开发)/ `npm run build && npm run preview`(看最终产物,端口 4321)。
 
 ## 设计方向
 - 主题:**浅紫色 / 薰衣草白**(明亮通透),灵感来自一张 "Where Money Grows" 图的上半部分。
 - 背景渐变:`#f6f5fd → #eceaf7 → #ddd9ef`(顶部接近白,往下丁香紫)。
-- 配色 token(定义在 index.html `<style>` 顶部 `:root`):
+- 配色 token(Home/About 组件和 `src/styles/site.css` 的 `:root` 各有一份,改色要同步):
   - `--bg:#e9e8f5` / `--bg-2:#fff`(卡片)/ `--fg:#2b2545`(深紫灰正文)
   - `--accent:#7c4dff`(主紫)/ `--accent-2:#5a2fd0`(深紫,hover/标签)
   - `--accent-soft:#b9a4ff` / `--glow:#9b6bff`
@@ -56,12 +62,25 @@
 - 360 宽的源视频放大后会略软,别再放得更大;有更高清原片可直接替换 mp4(背景色标需重新测)。
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
+## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客)
+- **框架:迁到 Astro**(Vercel Framework 改为 Astro,有构建步骤)。现有首页/About 页及其动画原样搬入,不改视觉。迁移后「单文件 index.html」约定作废。
+- **三语界面:English / 日本語 / 中文**,Astro i18n 路由:`/`(英文默认)、`/ja/…`、`/zh/…`;nav 语言切换并记住选择;界面文案每种语言一个字典文件。**文章不自动翻译**:每篇有 `lang`,译文用 `translationKey` 关联;单语文章在三种语言列表里都出现并带语言标记。
+- **内容集合**(每类一个文件夹,Markdown/YAML):
+  - `blog`:title / date / tags / summary / lang / `canonical`(原平台链接)。年份分组 + 标签筛选,文章页带目录和代码高亮。
+  - `projects`:状态 building / shipped / paused、技术栈、repo、demo、封面。玻璃卡片 + 详情页。
+  - `leetcode`:题号、标题、难度、标签、语言、日期;正文 = 思路 + 代码 + 复杂度。看板:难度环形图、练习日历热力图、可筛选题目表。
+  - `radar.yaml`(学习雷达):只写 `owner/name` + 为什么值得学 + 状态 to learn / learning / done;星数、语言、简介构建时用 GitHub API 拉取。三列卡片墙。
+  - `now.yaml`:公开的「正在做 / 在学 / 计划」页面(/now)。私人 to-do 不放进来(仓库和网站都是公开的)。
+  - 首页在现有动画区块下加「最新文章 / 正在做 / 最近刷题」条。
+- **旧文章搬运**,统一输出 `content/blog/<slug>/index.md` + 同目录图片:飞书用 `feishu2md`(需用户自己在飞书开放平台建应用拿 app id/secret,凭据由用户处理)或导出 Word 再转;CSDN 按 URL 列表抓取转 Markdown,**图片必须下载到本地**(CSDN 防盗链);Notion 用自带 Markdown & CSV 导出再规整;语雀/本地 md 补 front matter。保留 `canonical` 指回原文。
+- **分期**:① 迁 Astro(视觉不变)+ i18n 骨架 + blog,导入 1–2 篇示例 → ② projects + now → ③ leetcode 看板 + 学习雷达 → ④ 批量导入、站内搜索(Pagefind)、RSS、评论(giscus)。
+
 ## 待办 / Next
 - [ ] 对照录屏优化动画(见上)
-- [ ] 把占位文案(品牌名 NOVARA、AI agency 文案)换成真实作品集:关于我 / 精选作品 / 技能栈 / 联系方式
+- [ ] 把占位文案(品牌名已定为 Fishbloom(`src/site.ts`),AI agency 文案仍是占位)换成真实作品集:关于我 / 精选作品 / 技能栈 / 联系方式
 - [ ] (可选)绑定自定义域名(Vercel Settings → Domains),之后再决定要不要上 Cloudflare
 
 ## 约定
-- 保持单文件 index.html(除非要拆分资源)。
+- 页面文字一律走 `src/i18n/ui.ts`,不要在模板里写死某一种语言。
 - 颜色一律走 `:root` 的 token,别写死十六进制。
 - 改完本地验证后再 push;push 即上线,注意别把半成品推到 main。
