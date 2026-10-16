@@ -4,7 +4,7 @@ import { SITE } from '../site';
 
 interface Props {
   lang: Lang;
-  current?: 'home' | 'projects' | 'blog' | 'garden' | 'about';
+  current?: 'home' | 'projects' | 'blog' | 'learning' | 'about';
   /** this page in each language, for the language menu */
   alternates: Record<Lang, string>;
 }
@@ -19,7 +19,7 @@ const links = [
   { href: `${home}#services`, label: t('nav.services'), extra: true },
   { href: localePath(lang, '/projects/'), label: t('nav.projects'), page: 'projects' },
   { href: localePath(lang, '/blog/'), label: t('nav.blog'), page: 'blog' },
-  { href: localePath(lang, '/garden/'), label: t('nav.garden'), page: 'garden' },
+  { href: localePath(lang, '/learning/'), label: t('nav.learning'), page: 'learning' },
   { href: localePath(lang, '/about/'), label: t('nav.about'), page: 'about' },
   { href: SITE.github, label: t('nav.contact'), extra: true, external: true },
 ];

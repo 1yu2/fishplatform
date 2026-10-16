@@ -1,0 +1,67 @@
+/* "Now" strip: public to-dos + what I'm learning (homepage section, blog sidebar).
+   Global (now- prefix); tokens come from the page with fallbacks for the homepage's own token set. */
+.now-home{padding:30px 0 40px}
+.now-head{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:22px}
+.now-title{
+  font-family:"Archivo","PingFang SC","Hiragino Sans",sans-serif; font-weight:800; text-transform:uppercase;
+  font-size:var(--fs-h2, clamp(1.9rem, 5vw, 3.6rem)); line-height:1.02; margin:.4em 0 0; color:var(--fg-strong, #1f1a38);
+}
+.now-more, .now-side-title a{font-family:"Space Mono",monospace; font-size:.75rem; color:var(--accent-2, #5a2fd0); text-decoration:none; white-space:nowrap}
+.now-more:hover, .now-side-title a:hover{text-decoration:underline}
+.now-side-title{
+  font-family:"Space Mono",monospace; font-size:.7rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--faint, #9690ab); margin:0 0 14px; display:flex; justify-content:space-between; gap:10px;
+}
+.now-side-title a{letter-spacing:.04em; text-transform:none}
+
+.now-track{
+  display:grid; grid-auto-flow:column; grid-auto-columns:min(300px, 82%); gap:16px;
+  overflow-x:auto; scroll-snap-type:x mandatory; padding:6px 2px 18px; margin:0 -2px;
+  scrollbar-width:thin; scrollbar-color:var(--line-2, rgba(96,66,170,.3)) transparent;
+  -webkit-mask-image:linear-gradient(90deg, #000 88%, transparent); mask-image:linear-gradient(90deg, #000 88%, transparent);
+  min-height:120px;
+}
+.now-track:empty{min-height:0}
+.now-empty{display:none; color:var(--muted, #6a6385); margin:0}
+.is-empty .now-empty{display:block}
+.is-empty .now-track{display:none}
+@media(min-width:1101px){
+  .now-side .now-track{grid-auto-flow:row; grid-auto-columns:auto; overflow:visible; -webkit-mask-image:none; mask-image:none; padding:0; gap:10px; min-height:0}
+}
+
+.now-card{
+  scroll-snap-align:start; position:relative; display:flex; flex-direction:column; gap:10px; min-width:0;
+  padding:16px 16px 14px; border-radius:18px; text-decoration:none; color:inherit;
+  background:linear-gradient(160deg, var(--card-1, #efecfa), var(--card-2, #f6f4fd));
+  border:1px solid var(--line, rgba(96,66,170,.16));
+  transition:transform .25s cubic-bezier(.2,.7,.2,1), border-color .25s, box-shadow .25s;
+}
+a.now-card:hover{transform:translateY(-3px); border-color:var(--line-2, rgba(96,66,170,.3)); box-shadow:0 18px 40px -28px rgba(124,77,255,.55)}
+.now-top{display:flex; align-items:center; justify-content:space-between; gap:10px}
+.now-status{
+  font-family:"Space Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; border:1px solid var(--line-2, rgba(96,66,170,.3)); color:var(--muted, #6a6385);
+}
+.s-doing .now-status{color:#fff; background:var(--accent, #7c4dff); border-color:var(--accent, #7c4dff)}
+.s-learning .now-status{color:var(--accent-2, #5a2fd0); background:rgba(124,77,255,.1); border-color:var(--accent-soft, #b9a4ff)}
+.s-done .now-status{color:#8a5a10; background:rgba(217,154,43,.14); border-color:rgba(217,154,43,.45)}
+.now-level{display:inline-flex; gap:3px}
+.now-level i{width:6px; height:6px; border-radius:50%; background:var(--line-2, rgba(96,66,170,.3))}
+.now-level.p1 i{background:var(--accent, #7c4dff)}
+.now-level.p2 i:nth-child(-n+2){background:var(--accent, #7c4dff)}
+.now-level.p3 i:first-child{background:var(--accent, #7c4dff)}
+.now-card-title{
+  font-family:"Archivo","PingFang SC","Hiragino Sans",sans-serif; font-weight:700; font-size:1rem; line-height:1.35;
+  color:var(--fg-strong, #1f1a38); margin:0; display:flex; gap:8px;
+}
+.now-icon{color:var(--accent, #7c4dff); flex:none}
+.s-done .now-card-title{color:var(--muted, #6a6385)}
+.s-done .now-icon{color:var(--pollen, #d99a2b)}
+.now-foot{margin-top:auto; display:flex; flex-wrap:wrap; gap:6px 12px; font-family:"Space Mono",monospace; font-size:.68rem; color:var(--faint, #9690ab)}
+.now-foot > *{white-space:nowrap}
+.now-repo{color:var(--accent-2, #5a2fd0); overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.now-stars{color:var(--pollen, #d99a2b)}
+.now-card.overdue{border-color:rgba(214,72,96,.45)}
+.now-card.overdue .now-due{color:#c43c58}
+.now-side .now-card{padding:12px 14px; gap:8px}
+.now-side .now-card-title{font-size:.92rem}

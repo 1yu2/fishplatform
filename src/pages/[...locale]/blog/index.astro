@@ -2,20 +2,24 @@
 import '../../../styles/site.css';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
-import GardenStrip from '../../../components/garden/GardenStrip.astro';
+import NowStrip from '../../../components/now/NowStrip.astro';
 import { SITE } from '../../../site';
-import { languages, langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../../i18n/utils';
-import { formatDate, getPosts, postPath, readingMinutes } from '../../../lib/posts';
+import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate } from '../../../lib/posts';
+import { blogEntries, cachePublic } from '../../../lib/public-data';
 
-export const getStaticPaths = localeStaticPaths;
-const { lang } = Astro.props as { lang: Lang };
+// rendered on request so posts published from Studio appear right away (cached at the edge for a minute)
+export const prerender = false;
+const lang = langFromParam(Astro.params.locale);
+if (!lang) return Astro.rewrite('/404');
+cachePublic(Astro.response.headers);
 const t = useTranslations(lang);
 const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/blog/')])) as Record<Lang, string>;
 
-// every post shows in every language's list; ones in another language get a badge
-const posts = await getPosts();
-const tags = [...new Set(posts.flatMap((p) => p.data.tags))].sort((a, b) => a.localeCompare(b));
-const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
+// every post (repo files + Studio notes) shows in every language's list; other languages get a badge
+const posts = await blogEntries();
+const tags = [...new Set(posts.flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b));
+const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
 ---
 <Base lang={lang} title={t('meta.blog')} description={t('meta.blogDesc')} path="/blog/">
   <Nav lang={lang} current="blog" alternates={alternates} />
@@ -42,17 +46,17 @@ const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
         <section class="year" data-year={year}>
           <h2 class="year-label">{year}</h2>
           <ol class="posts">
-            {posts.filter((p) => p.data.date.getFullYear() === year).map((p) => (
-              <li class="post" data-tags={p.data.tags.join('|')}>
-                <a href={postPath(p)}>
+            {posts.filter((p) => p.date.getFullYear() === year).map((p) => (
+              <li class="post" data-tags={p.tags.join('|')}>
+                <a href={p.href}>
                   <div class="meta">
-                    <time datetime={p.data.date.toISOString()}>{formatDate(p.data.date, lang)}</time>
-                    <span>· {t('blog.minRead', { n: readingMinutes(p.body) })}</span>
-                    {p.data.lang !== lang && <span class="lang-badge">{languages[p.data.lang]}</span>}
+                    <time datetime={p.date.toISOString()}>{formatDate(p.date, lang)}</time>
+                    <span>· {t('blog.minRead', { n: p.minutes })}</span>
+                    {p.lang !== lang && <span class="lang-badge">{languages[p.lang]}</span>}
                   </div>
-                  <h3 lang={p.data.lang}>{p.data.title}</h3>
-                  <p lang={p.data.lang}>{p.data.summary}</p>
-                  <div class="tags">{p.data.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
+                  <h3 lang={p.lang}>{p.title}</h3>
+                  <p lang={p.lang}>{p.summary}</p>
+                  <div class="tags">{p.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
                 </a>
               </li>
             ))}
@@ -60,7 +64,7 @@ const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
         </section>
       ))}
       </div>
-      <GardenStrip lang={lang} variant="side" />
+      <NowStrip lang={lang} variant="side" />
     </div>
 
     <footer class="site-foot">
@@ -93,10 +97,10 @@ const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
   .blog{padding-top:130px}
   .blog-head{max-width:760px}
   .blog-body{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:clamp(30px,5vw,70px); align-items:start}
-  .blog-body :global(.gd-side){position:sticky; top:100px; margin-top:44px}
+  .blog-body :global(.now-side){position:sticky; top:100px; margin-top:44px}
   @media(max-width:1100px){
     .blog-body{grid-template-columns:minmax(0,1fr)}
-    .blog-body :global(.gd-side){position:static; order:-1; margin-top:40px}
+    .blog-body :global(.now-side){position:static; order:-1; margin-top:40px}
   }
   .filter{display:flex; flex-wrap:wrap; gap:8px; margin:44px 0 10px}
   .chip{

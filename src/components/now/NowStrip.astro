@@ -1,0 +1,153 @@
+---
+import './now.css';
+import { localePath, useTranslations, type Lang } from '../../i18n/utils';
+import { KEEP_DONE_DAYS } from '../../lib/studio-types';
+
+interface Props {
+  lang: Lang;
+  /** 'home': titled sliding strip; 'side': compact list beside the blog */
+  variant?: 'home' | 'side';
+  max?: number;
+}
+const { lang, variant = 'home', max = variant === 'home' ? 8 : 6 } = Astro.props;
+const t = useTranslations(lang);
+// labels the browser script needs, in this page's language
+const labels = {
+  todo: t('strip.todo'), doing: t('strip.doing'), done: t('strip.done'), learning: t('strip.learning'),
+  since: t('strip.since'), startedToday: t('strip.startedToday'), doneAgo: t('strip.doneAgo'), doneToday: t('strip.doneToday'),
+  due: t('strip.due'), overdue: t('strip.overdue'),
+  level: [t('level.1'), t('level.2'), t('level.3')], importance: t('learning.importance'),
+};
+const learningHref = localePath(lang, '/learning/');
+---
+<div class:list={['now-strip', `now-${variant}`]} data-now data-max={max} data-keep={KEEP_DONE_DAYS} data-lang={lang}
+  data-labels={JSON.stringify(labels)} data-learning-href={learningHref}>
+  {variant === 'home' ? (
+    <div class="now-head">
+      <div>
+        <div class="eyebrow reveal">{t('strip.eyebrow')}</div>
+        <h2 class="now-title reveal">{t('strip.title')}</h2>
+      </div>
+      <a class="now-more" href={learningHref}>{t('strip.seeLearning')}</a>
+    </div>
+  ) : (
+    <p class="now-side-title"><span>{t('strip.side')}</span><a href={learningHref}>{t('strip.seeLearning')}</a></p>
+  )}
+  <div class="now-track" data-track data-autoplay={variant === 'home' ? '' : undefined} aria-live="polite"></div>
+  <p class="now-empty">{t('strip.empty')}</p>
+</div>
+
+<script>
+  // Fetches public to-dos + what I'm learning from Supabase's REST API (anon key: public rows only)
+  // and builds the cards. Finished to-dos keep their slot for `keep` days, then drop off and the next
+  // item moves up. Text goes in via textContent, never as HTML.
+  const URL_ = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
+  const KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+  const DAY = 864e5;
+
+  type Row = Record<string, any>;
+  async function rest(path: string): Promise<Row[]> {
+    const r = await fetch(`${URL_}/rest/v1/${path}`, { headers: { apikey: KEY!, Authorization: `Bearer ${KEY}` } });
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }
+  const days = (iso?: string | null) => (iso ? Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / DAY)) : null);
+  const stars = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  let cache: Promise<{ todos: Row[]; learning: Row[] }> | undefined;
+  function data() {
+    return (cache ??= Promise.all([
+      rest('todos?select=id,title,priority,status,due,started_at,done_at,learning_id&is_public=eq.true'),
+      rest('learning?select=id,title,repo,stars,importance,status&is_public=eq.true&status=eq.learning'),
+    ]).then(([todos, learning]) => ({ todos, learning })));
+  }
+
+  function card(item: Row, kind: 'todo' | 'learning', L: Row, learningHref: string) {
+    const status = kind === 'learning' ? 'learning' : item.status;
+    const level = kind === 'learning' ? item.importance : item.priority;
+    const c = el(kind === 'learning' ? 'a' : 'article', `now-card s-${status}`);
+    if (kind === 'learning') (c as HTMLAnchorElement).href = `${learningHref}${item.id}/`;
+
+    const top = el('div', 'now-top');
+    top.append(el('span', 'now-status', L[status]));
+    const dots = el('span', `now-level p${level}`);
+    dots.title = `${L.importance}: ${L.level[level - 1]}`;
+    dots.append(el('i'), el('i'), el('i'));
+    top.append(dots);
+    c.append(top);
+
+    const title = el('h3', 'now-card-title');
+    title.append(el('span', 'now-icon', kind === 'learning' ? '⌥' : status === 'done' ? '✓' : '◇'), el('span', '', item.title));
+    c.append(title);
+
+    const foot = el('div', 'now-foot');
+    if (kind === 'learning') {
+      if (item.repo) foot.append(el('span', 'now-repo', item.repo));
+      if (item.stars != null) foot.append(el('span', 'now-stars', `★ ${stars(item.stars)}`));
+    } else {
+      const n = status === 'doing' ? days(item.started_at) : status === 'done' ? days(item.done_at) : null;
+      if (status === 'doing' && n != null) foot.append(el('span', '', n === 0 ? L.startedToday : L.since.replace('{n}', n + 1)));
+      if (status === 'done' && n != null) foot.append(el('span', '', n === 0 ? L.doneToday : L.doneAgo.replace('{n}', n)));
+      if (item.due && status !== 'done') {
+        const over = item.due < new Date().toISOString().slice(0, 10);   // YYYY-MM-DD compares as text
+        if (over) c.classList.add('overdue');
+        foot.append(el('span', 'now-due', (over ? `${L.overdue} · ` : '') + L.due.replace('{date}', item.due.slice(5))));
+      }
+    }
+    c.append(foot);
+    return c;
+  }
+
+  function autoplay(track: HTMLElement) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let paused = false, visible = false, resume: number | undefined;
+    setInterval(() => {
+      if (paused || !visible || document.hidden) return;
+      const first = track.firstElementChild as HTMLElement | null;
+      if (!first) return;
+      const gap = parseFloat(getComputedStyle(track).columnGap) || 16;
+      if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 4) track.scrollTo({ left: 0, behavior: 'smooth' });
+      else track.scrollBy({ left: first.getBoundingClientRect().width + gap, behavior: 'smooth' });
+    }, 4500);
+    const pause = () => { paused = true; clearTimeout(resume); };
+    const later = (ms: number) => { clearTimeout(resume); resume = window.setTimeout(() => (paused = false), ms); };
+    track.addEventListener('pointerenter', pause);
+    track.addEventListener('pointerleave', () => later(1500));
+    track.addEventListener('focusin', pause);
+    track.addEventListener('focusout', () => later(1500));
+    track.addEventListener('touchstart', pause, { passive: true });
+    track.addEventListener('touchend', () => later(6000), { passive: true });
+    new IntersectionObserver((es) => (visible = es[0].isIntersecting)).observe(track);
+  }
+
+  async function init(root: HTMLElement) {
+    const track = root.querySelector<HTMLElement>('[data-track]')!;
+    if (!URL_ || !KEY) { root.classList.add('is-empty'); return; }
+    const L = JSON.parse(root.dataset.labels!);
+    const keep = +root.dataset.keep! || 7, max = +root.dataset.max! || 8;
+    try {
+      const { todos, learning } = await data();
+      const live = todos.filter((t) => t.status !== 'done' || (days(t.done_at) ?? 0) <= keep);
+      // priority first; within a priority: doing, learning, just finished, then up next
+      const rank: Record<string, number> = { doing: 0, learning: 1, done: 2, todo: 3 };
+      const items = [
+        ...live.map((t) => ({ kind: 'todo' as const, row: t, level: t.priority, r: rank[t.status] })),
+        ...learning.map((l) => ({ kind: 'learning' as const, row: l, level: l.importance, r: rank.learning })),
+      ].sort((a, b) => a.level - b.level || a.r - b.r || String(a.row.due ?? '9').localeCompare(String(b.row.due ?? '9'))).slice(0, max);
+      track.replaceChildren(...items.map((i) => card(i.row, i.kind, L, root.dataset.learningHref!)));
+      root.classList.toggle('is-empty', items.length === 0);
+      if (track.hasAttribute('data-autoplay') && items.length > 1) autoplay(track);
+    } catch {
+      root.classList.add('is-empty');
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-now]').forEach(init);
+</script>

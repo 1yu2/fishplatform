@@ -15,33 +15,88 @@
     },
     {
       "source": "/now",
-      "destination": "/garden/",
+      "destination": "/learning/",
       "permanent": true
     },
     {
       "source": "/now/",
-      "destination": "/garden/",
+      "destination": "/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/garden",
+      "destination": "/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/garden/",
+      "destination": "/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/garden/:id",
+      "destination": "/learning/",
       "permanent": true
     },
     {
       "source": "/ja/now",
-      "destination": "/ja/garden/",
+      "destination": "/ja/learning/",
       "permanent": true
     },
     {
       "source": "/ja/now/",
-      "destination": "/ja/garden/",
+      "destination": "/ja/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/ja/garden",
+      "destination": "/ja/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/ja/garden/",
+      "destination": "/ja/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/ja/garden/:id",
+      "destination": "/ja/learning/",
       "permanent": true
     },
     {
       "source": "/zh/now",
-      "destination": "/zh/garden/",
+      "destination": "/zh/learning/",
       "permanent": true
     },
     {
       "source": "/zh/now/",
-      "destination": "/zh/garden/",
+      "destination": "/zh/learning/",
       "permanent": true
+    },
+    {
+      "source": "/zh/garden",
+      "destination": "/zh/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/zh/garden/",
+      "destination": "/zh/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/zh/garden/:id",
+      "destination": "/zh/learning/",
+      "permanent": true
+    },
+    {
+      "source": "/admin",
+      "destination": "/studio",
+      "permanent": false
+    },
+    {
+      "source": "/admin/",
+      "destination": "/studio",
+      "permanent": false
     }
   ]
 }

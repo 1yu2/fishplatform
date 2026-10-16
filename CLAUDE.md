@@ -7,7 +7,7 @@
 - 线上地址:https://fishplatform.vercel.app/
 - 仓库:https://github.com/1yu2/fishplatform （main 分支）
 - 部署链路:改代码 → `git push` 到 main → Vercel 自动部署（Vercel↔GitHub 已配好）
-- **Astro 静态站,有构建步骤**:`vercel.json` 里写明 framework=astro、`npm run build`、输出 `dist/`,并把旧的 `/about.html`、`/index.html` 301 到新地址。
+- **Astro(大部分页面预构建,博客 / 学习页按请求渲染,用 `@astrojs/vercel` 适配器)**:`vercel.json` 里写明 framework=astro、`npm run build`、输出 `dist/`,并把旧的 `/about.html`、`/index.html` 301 到新地址。
 - 大改动先在分支上做:推分支会生成 Vercel 预览地址,确认后再合到 main。
 
 ## 技术栈 / 文件
@@ -18,14 +18,20 @@
 - `src/components/Nav.astro`:共享导航 + 语言切换(记住选择,`/` 会把选过 ja/zh 的访客送回对应语言)。
 - 博客:`src/content.config.ts`(schema)、`src/content/blog/<slug>/index.md`、列表 `[...locale]/blog/index.astro`、文章 `[...locale]/blog/[slug].astro`;内容页公共样式 `src/styles/site.css`。
 - 项目:`src/content/projects/<slug>/index.md`(status building/shipped/paused、stack、repo/demo、cover、featured),工具函数 `src/lib/projects.ts`;列表 `[...locale]/projects/index.astro`(玻璃卡片 + 状态筛选,同一 `translationKey` 只出一张卡、优先当前语言),详情 `[...locale]/projects/[slug].astro`。
-- **Garden(花园,取代原 /now)**:待办 + 想学的 GitHub 仓库 + 链接,统一一个集合 `src/content/garden/<id>.md`(type task/repo/link、priority 1–3、status todo/doing/done、started/due/done、project、titles.{en,ja,zh} 可选,正文是笔记)。工具 `src/lib/garden.ts`(排序:优先级 → 同优先级里 进行中 → 刚完成 → 待开始;repo 的星数/简介构建时从 GitHub API 拉,可设 `GITHUB_TOKEN` 环境变量防限流)。
-  - 组件 `src/components/garden/`:`GardenCard` / `GardenStrip`(首页 004 区块自动轮播;博客列表侧栏,窄屏变横滑)/ `GardenScript`(浏览器端:相对天数、逾期标红、**完成后保留 7 天自动消失、后面的顶上来**,无需重新构建;`KEEP_DONE_DAYS`)。
-  - 页面:`[...locale]/garden/index.astro`(全部,按 进行中/待开始/已完成 分组 + 类型筛选)、`[...locale]/garden/[id].astro`(详情:仓库卡、日期、笔记、所属项目、**写过的相关文章**)。
-  - 文章 front matter `related: [garden-id, ...]` 关联条目;文章页底部显示「花园中的相关条目」,条目页反向列出文章。
-  - **全部公开**(仓库和网站都是公开的),私人待办别放这里。
-- **网页编辑后台 `/admin`(Sveltia CMS)**:`public/admin/index.html`(固定版本 + SRI 哈希,升级时两者一起改)、`public/admin/config.yml`(字段必须和 `src/content.config.ts` 对应)。发布 = 直接提交到 GitHub main → Vercel 自动上线(约 1 分钟)。图片存在文章/项目自己的文件夹里。登录用 GitHub fine-grained token(只授权本仓库 Contents 读写),token 由用户自己生成和保管;本地 `npm run dev` 时可选「使用本地仓库」直接改文件。
-  - 所有条目都有 `slug` 字段(= 文件夹/文件名),只给编辑器建文件用;站点 id 一律取文件名,改 slug 不会断链接。
-  - 内容 schema 的可选字段都用 `opt()` 包了一层:编辑器对空字段会写 `''`,要当作未填写。
+- **Studio(`/studio`,只有站点主人能登录)**:用户要的三个功能,数据在 Supabase(Postgres + 登录 + 图片存储)。
+  - **待办** `todos`:快速添加、优先级 1–3、截止日期、进行中/完成、可关联学习条目或项目;`is_public` 默认私密,勾「公开」才上网站。
+  - **学习清单** `learning`:粘贴 GitHub 地址自动填名字/星数/简介/语言(浏览器直接调 GitHub API);重要程度、状态 想学/在学/学完、标签、笔记。
+  - **写作** `notes`:Markdown 编辑 + 实时预览 + 粘贴/拖入图片(传到 Storage 的 `studio` bucket);摘要、标签、语言、slug;关联 learning_ids / todo_ids / projects;「发布到博客」= status published,**无需重新部署**。自动保存(1.2s 防抖)。
+  - 代码:`src/studio/*.tsx`(Preact,`client:only`)、`src/pages/studio.astro`、`src/lib/supabase.ts`、`src/lib/studio-types.ts`。界面是中文(只给主人用)。
+  - 数据库:`supabase/schema.sql`(表 + RLS:访客只读公开/已发布的行,只有 `app_owner` 能写)、`supabase/seed.sql`(原花园数据)、`supabase/README.md`(用户自己建项目、建账号、填密钥的步骤)。
+  - 环境变量:`PUBLIC_SUPABASE_URL`、`PUBLIC_SUPABASE_ANON_KEY`(本地 `.env`,线上 Vercel 环境变量;都是公开密钥,安全靠 RLS)。**不要**用 service_role key。没配置时网站照常运行,只是没有 Studio 数据。
+- **公开页面怎么读数据**:
+  - 博客列表和文章页 `[...locale]/blog/*` 改为**按请求渲染**(`prerender = false`,CDN 缓存 60s):仓库里的 Markdown 文章 + Studio 已发布笔记合并显示(`src/lib/public-data.ts` 的 `blogEntries()`;笔记用 `@astrojs/markdown-remark` 渲染,和文件文章同一套高亮)。文章页底部「相关」列出笔记关联的学习条目 / 项目 / 公开待办。
+  - `/learning`(公开的学习清单,按 在学/想学/学完 分组)和 `/learning/<id>`(笔记、为它写过的文章、相关待办)也是按请求渲染。
+  - 首页 004「现在」区块 + 博客侧栏:`src/components/now/NowStrip.astro`,浏览器直接请求 Supabase REST(只拿公开行):公开待办 + 在学的条目,按优先级排,完成的待办 7 天后自动消失(`KEEP_DONE_DAYS`)。
+  - 首页 002 工作室区块的三个数字是实时的(文章数 = 仓库文章 + 已发布笔记、在学仓库数、已完成公开待办数);003 服务区三张卡片(保留 3D 图形)分别链接 写作 / 学习清单 / 项目。
+  - 404 页按请求渲染(`Astro.rewrite('/404')` 要求),状态码 404。
+- 已移除:Garden(花园)和 `/admin`(Sveltia CMS);`/now`、`/garden`、`/admin` 旧链接在 `vercel.json` 里重定向到 `/learning` / `/studio`。
 - 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
 - Nav 8 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services 和 Contact(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ header 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
@@ -73,7 +79,7 @@
 - 360 宽的源视频放大后会略软,别再放得更大;有更高清原片可直接替换 mp4(背景色标需重新测)。
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
-## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客;第 ② 期 projects 已做;now 被 Garden 取代;网页编辑后台 /admin 已加)
+## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客;第 ② 期 projects 已做;待办 / 学习清单 / 写作 由 Studio + Supabase 实现,见上)
 - **框架:迁到 Astro**(Vercel Framework 改为 Astro,有构建步骤)。现有首页/About 页及其动画原样搬入,不改视觉。迁移后「单文件 index.html」约定作废。
 - **三语界面:English / 日本語 / 中文**,Astro i18n 路由:`/`(英文默认)、`/ja/…`、`/zh/…`;nav 语言切换并记住选择;界面文案每种语言一个字典文件。**文章不自动翻译**:每篇有 `lang`,译文用 `translationKey` 关联;单语文章在三种语言列表里都出现并带语言标记。
 - **内容集合**(每类一个文件夹,Markdown/YAML):
@@ -81,7 +87,7 @@
   - `projects`:状态 building / shipped / paused、技术栈、repo、demo、封面。玻璃卡片 + 详情页。
   - `leetcode`:题号、标题、难度、标签、语言、日期;正文 = 思路 + 代码 + 复杂度。看板:难度环形图、练习日历热力图、可筛选题目表。
   - `radar.yaml`(学习雷达):只写 `owner/name` + 为什么值得学 + 状态 to learn / learning / done;星数、语言、简介构建时用 GitHub API 拉取。三列卡片墙。
-  - ~~`now.yaml`~~ → 已由 Garden 取代(见上)。学习雷达也并入 Garden(type: repo)。
+  - ~~`now.yaml` / 学习雷达~~ → 由 Studio 的「待办」「学习清单」取代(见上)。
   - 首页在现有动画区块下加「最新文章 / 正在做 / 最近刷题」条。
 - **旧文章搬运**,统一输出 `content/blog/<slug>/index.md` + 同目录图片:飞书用 `feishu2md`(需用户自己在飞书开放平台建应用拿 app id/secret,凭据由用户处理)或导出 Word 再转;CSDN 按 URL 列表抓取转 Markdown,**图片必须下载到本地**(CSDN 防盗链);Notion 用自带 Markdown & CSV 导出再规整;语雀/本地 md 补 front matter。保留 `canonical` 指回原文。
 - **分期**:① 迁 Astro(视觉不变)+ i18n 骨架 + blog,导入 1–2 篇示例 → ② projects + now → ③ leetcode 看板 + 学习雷达 → ④ 批量导入、站内搜索(Pagefind)、RSS、评论(giscus)。

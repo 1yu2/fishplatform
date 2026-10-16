@@ -1,0 +1,20 @@
+---
+import '../styles/site.css';
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import { langs, localePath, type Lang } from '../i18n/utils';
+
+// rendered on request so server-rendered pages (blog, learning) can rewrite to it for unknown slugs
+export const prerender = false;
+Astro.response.status = 404;
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/')])) as Record<Lang, string>;
+---
+<Base lang="en" title="Not found — Fishbloom">
+  <Nav lang="en" alternates={alternates} />
+  <main class="wrap" style="padding:160px 0 120px; text-align:center">
+    <div class="eyebrow" style="justify-content:center">404</div>
+    <h1 class="page-title" style="margin-inline:auto">Nothing grows here</h1>
+    <p class="page-lead" style="margin-inline:auto">This page doesn't exist (any more). · 页面不存在 · ページが見つかりません</p>
+    <p style="margin-top:30px"><a href="/" style="color:var(--accent-2)">← Fishbloom</a></p>
+  </main>
+</Base>

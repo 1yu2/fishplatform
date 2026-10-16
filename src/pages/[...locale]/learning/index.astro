@@ -1,0 +1,95 @@
+---
+import '../../../styles/site.css';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import { SITE } from '../../../site';
+import { langFromParam, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { cachePublic, publicLearning } from '../../../lib/public-data';
+import { formatStars, type Learning } from '../../../lib/studio-types';
+
+// rendered on request: changes made in Studio show up within a minute
+export const prerender = false;
+const lang = langFromParam(Astro.params.locale);
+if (!lang) return Astro.rewrite('/404');
+cachePublic(Astro.response.headers);
+const t = useTranslations(lang);
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/learning/')])) as Record<Lang, string>;
+
+const items = await publicLearning();
+const groups: { status: Learning['status']; items: Learning[] }[] = (['learning', 'to_learn', 'learned'] as const)
+  .map((status) => ({ status, items: items.filter((i) => i.status === status) }))
+  .filter((g) => g.items.length);
+const excerpt = (s: string) => (s.length > 140 ? `${s.slice(0, 140).trimEnd()}…` : s);
+---
+<Base lang={lang} title={t('meta.learning')} description={t('meta.learningDesc')} path="/learning/">
+  <Nav lang={lang} current="learning" alternates={alternates} />
+
+  <main class="wrap learning-page">
+    <header class="l-head">
+      <div class="eyebrow">{t('learning.eyebrow')}</div>
+      <h1 class="page-title">{t('learning.title')}</h1>
+      <p class="page-lead">{t('learning.lead')}</p>
+    </header>
+
+    {items.length === 0 && <p class="l-empty">{t('learning.empty')}</p>}
+
+    {groups.map((g) => (
+      <section class={`l-group l-${g.status}`}>
+        <h2 class="l-label"><span>{t(`learning.status.${g.status}`)}</span><span class="l-count">{g.items.length}</span></h2>
+        <div class="l-grid">
+          {g.items.map((i) => (
+            <a class="l-card" href={localePath(lang, `/learning/${i.id}/`)}>
+              <div class="l-top">
+                <span class={`l-level p${i.importance}`} title={`${t('learning.importance')}: ${t(`level.${i.importance}` as 'level.1')}`}><i></i><i></i><i></i></span>
+                <span class="l-kind">{i.kind === 'repo' ? 'GitHub' : 'Link'}</span>
+              </div>
+              <h3>{i.title}</h3>
+              {i.description && <p class="l-desc" lang="en">{i.description}</p>}
+              {i.notes && <p class="l-notes">{excerpt(i.notes)}</p>}
+              <div class="l-foot">
+                {i.repo && <span class="l-repo">{i.repo}</span>}
+                {i.stars != null && <span class="l-stars">★ {formatStars(i.stars)}</span>}
+                {i.language && <span>{i.language}</span>}
+                {i.tags.map((tag) => <span class="tag">{tag}</span>)}
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/')}>{t('about.back')}</a>
+    </footer>
+  </main>
+</Base>
+
+<style>
+  .learning-page{padding-top:130px}
+  .l-head{max-width:760px}
+  .l-empty{color:var(--muted); margin-top:40px}
+  .l-group{margin-top:46px}
+  .l-label{display:flex; align-items:center; gap:10px; margin:0 0 18px; font-family:var(--font-mono); font-weight:400; font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)}
+  .l-learning .l-label span:first-child{color:var(--accent-2)}
+  .l-count{font-size:.7rem; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:1px 8px; letter-spacing:.04em}
+  .l-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap:16px}
+  .l-card{display:flex; flex-direction:column; gap:10px; padding:18px; border-radius:18px; text-decoration:none; color:inherit;
+    background:linear-gradient(160deg, var(--card-1), var(--card-2)); border:1px solid var(--line); transition:transform .25s cubic-bezier(.2,.7,.2,1), border-color .25s, box-shadow .25s}
+  .l-card:hover{transform:translateY(-3px); border-color:var(--line-2); box-shadow:0 18px 40px -28px rgba(124,77,255,.55)}
+  .l-learning .l-card{border-color:var(--accent-soft)}
+  .l-learned .l-card{opacity:.85}
+  .l-top{display:flex; justify-content:space-between; align-items:center}
+  .l-kind{font-family:var(--font-mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--faint)}
+  .l-level{display:inline-flex; gap:3px}
+  .l-level i{width:6px; height:6px; border-radius:50%; background:var(--line-2)}
+  .l-level.p1 i{background:var(--accent)}
+  .l-level.p2 i:nth-child(-n+2){background:var(--accent)}
+  .l-level.p3 i:first-child{background:var(--accent)}
+  .l-card h3{font-family:var(--font-display); font-weight:700; font-size:1.1rem; margin:0; color:var(--fg-strong)}
+  .l-desc{margin:0; color:var(--muted); font-size:.88rem}
+  .l-notes{margin:0; font-size:.88rem; color:var(--fg); border-left:2px solid var(--accent-soft); padding-left:10px}
+  .l-foot{margin-top:auto; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; font-family:var(--font-mono); font-size:.68rem; color:var(--faint)}
+  .l-repo{color:var(--accent-2)}
+  .l-stars{color:var(--pollen)}
+</style>

@@ -39,3 +39,9 @@ export function localeStaticPaths() {
     props: { lang },
   }));
 }
+
+/** for server-rendered pages under [...locale]: undefined -> 'en', 'ja' / 'zh' -> themselves, anything else -> null (404) */
+export function langFromParam(locale: string | undefined): Lang | null {
+  if (locale === undefined || locale === '') return defaultLang;
+  return locale === 'ja' || locale === 'zh' ? locale : null;
+}

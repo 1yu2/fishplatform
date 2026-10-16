@@ -5,3 +5,5 @@ ref.mov
 ref2.mov
 dist/
 .astro/
+.env
+.env.local

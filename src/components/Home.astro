@@ -2,12 +2,15 @@
 import { localePath, useTranslations, type Lang } from '../i18n/utils';
 import Nav from './Nav.astro';
 import GitHubLink from './GitHubLink.astro';
-import GardenStrip from './garden/GardenStrip.astro';
+import NowStrip from './now/NowStrip.astro';
+import { getPosts } from '../lib/posts';
 import { SITE } from '../site';
 
 interface Props { lang: Lang; alternates: Record<Lang, string>; }
 const { lang, alternates } = Astro.props;
 const t = useTranslations(lang);
+// posts in the repo; the browser adds notes published from Studio (see the stats script below)
+const filePosts = (await getPosts()).length;
 ---
 <canvas id="scene" aria-hidden="true"></canvas>
 
@@ -38,9 +41,9 @@ const t = useTranslations(lang);
     <h2 class="reveal">{t('home.studio.title')}</h2>
     <p class="lead reveal">{t('home.studio.lead')}</p>
     <div class="stats">
-      <div class="stat reveal"><div class="n">40<span>+</span></div><div class="l">{t('home.stat1')}</div></div>
-      <div class="stat reveal"><div class="n">6<span>×</span></div><div class="l">{t('home.stat2')}</div></div>
-      <div class="stat reveal"><div class="n">98<span>%</span></div><div class="l">{t('home.stat3')}</div></div>
+      <a class="stat reveal" href={localePath(lang, '/blog/')}><div class="n" data-stat="posts" data-base={filePosts}>{filePosts}</div><div class="l">{t('home.stat1')}</div></a>
+      <a class="stat reveal" href={localePath(lang, '/learning/')}><div class="n" data-stat="learning">–</div><div class="l">{t('home.stat2')}</div></a>
+      <div class="stat reveal"><div class="n" data-stat="done">–</div><div class="l">{t('home.stat3')}</div></div>
     </div>
   </section>
 
@@ -63,6 +66,7 @@ const t = useTranslations(lang);
         </div>
         <h3>{t('home.card1.title')}</h3>
         <p>{t('home.card1.body')}</p>
+        <a class="card-link" href={localePath(lang, '/blog/')}><span>{t('home.cardMore')}</span></a>
       </article>
       <article class="card reveal">
         <span class="idx">02</span>
@@ -74,6 +78,7 @@ const t = useTranslations(lang);
         </div>
         <h3>{t('home.card2.title')}</h3>
         <p>{t('home.card2.body')}</p>
+        <a class="card-link" href={localePath(lang, '/learning/')}><span>{t('home.cardMore')}</span></a>
       </article>
       <article class="card reveal">
         <span class="idx">03</span>
@@ -85,12 +90,13 @@ const t = useTranslations(lang);
         </div>
         <h3>{t('home.card3.title')}</h3>
         <p>{t('home.card3.body')}</p>
+        <a class="card-link" href={localePath(lang, '/projects/')}><span>{t('home.cardMore')}</span></a>
       </article>
     </div>
   </section>
 
-  <section id="garden" class="garden-home" aria-label="Garden">
-    <GardenStrip lang={lang} />
+  <section id="now" aria-label="Now">
+    <NowStrip lang={lang} />
   </section>
 
   <section id="contact" class="foot-cta" aria-label="Contact">
@@ -792,7 +798,43 @@ const t = useTranslations(lang);
 })();
 </script>
 
+<script>
+  // Studio section numbers: published notes are added to the repo's post count; the other two come
+  // straight from Supabase (public rows only), so they move as soon as something changes in Studio.
+  const URL_ = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
+  const KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+  async function count(path: string): Promise<number | null> {
+    try {
+      const r = await fetch(`${URL_}/rest/v1/${path}`, { method: 'HEAD', headers: { apikey: KEY!, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' } });
+      const m = r.headers.get('content-range')?.match(/\/(\d+)$/);
+      return m ? +m[1] : null;
+    } catch { return null; }
+  }
+  const set = (name: string, n: number | null) => {
+    const e = document.querySelector<HTMLElement>(`[data-stat="${name}"]`);
+    if (e && n != null) e.textContent = String(n);
+  };
+  if (URL_ && KEY) {
+    const base = +(document.querySelector<HTMLElement>('[data-stat="posts"]')?.dataset.base ?? 0);
+    count('notes?select=id&status=eq.published').then((n) => set('posts', n == null ? null : base + n));
+    count('learning?select=id&is_public=eq.true&status=eq.learning').then((n) => set('learning', n));
+    count('todos?select=id&is_public=eq.true&status=eq.done').then((n) => set('done', n));
+  }
+</script>
+
 <style is:global>
+  a.stat{text-decoration:none; color:inherit; transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  a.stat:hover{transform:translateY(-3px)}
+  a.stat:hover .l{color:var(--accent-2)}
+  .card .card-link{
+    position:absolute; inset:0; z-index:3; border-radius:inherit;
+    display:flex; align-items:flex-end; justify-content:flex-end; padding:0 24px 22px;
+    font-family:"Space Mono",monospace; font-size:.75rem; color:var(--accent-2); text-decoration:none;
+  }
+  .card .card-link span{opacity:0; transform:translateX(-6px); transition:opacity .25s, transform .25s}
+  .card:hover .card-link span, .card .card-link:focus-visible span{opacity:1; transform:none}
+  .card .card-link:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px}
+
   /* Layout: fixed full-bleed WebGL particle sphere behind scrolling dark-violet sections; left-aligned editorial type */
   :root{
     --bg:#e9e8f5;          /* soft periwinkle */

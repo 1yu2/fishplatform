@@ -1,0 +1,128 @@
+---
+import '../../../styles/site.css';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import { SITE } from '../../../site';
+import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate } from '../../../lib/posts';
+import { cachePublic, learningItem, notePath, publicTodosFor, publishedNotes, renderMarkdown } from '../../../lib/public-data';
+import { formatStars } from '../../../lib/studio-types';
+
+// one learning item: its notes, the posts written about it and the to-dos tied to it
+export const prerender = false;
+const lang = langFromParam(Astro.params.locale);
+if (!lang) return Astro.rewrite('/404');
+const item = await learningItem(Astro.params.id ?? '');
+if (!item) return Astro.rewrite('/404');
+cachePublic(Astro.response.headers);
+const t = useTranslations(lang);
+
+const [notes, todos] = await Promise.all([publishedNotes(), publicTodosFor({ learningId: item.id })]);
+const posts = notes.filter((n) => n.learning_ids.includes(item.id));
+const notesHtml = item.notes.trim() ? (await renderMarkdown(item.notes)).html : '';
+const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, `/learning/${item.id}/`)])) as Record<Lang, string>;
+---
+<Base lang={lang} title={`${item.title} — ${SITE.name}`} description={item.description ?? t('meta.learningDesc')} alternates={alternates}>
+  <Nav lang={lang} current="learning" alternates={alternates} />
+
+  <main class="wrap item-page">
+    <a class="back" href={localePath(lang, '/learning/')}>{t('learning.back')}</a>
+
+    <article class="item">
+      <div class="i-top">
+        <span class={`i-status s-${item.status}`}>{t(`learning.status.${item.status}`)}</span>
+        <span class="i-level">{t('learning.importance')}: {t(`level.${item.importance}` as 'level.1')}</span>
+      </div>
+      <h1 class="page-title">{item.title}</h1>
+
+      {item.url && (
+        <a class="repo" href={item.url} target="_blank" rel="noopener">
+          <span class="repo-name">{item.repo ?? item.url.replace(/^https?:\/\//, '')}</span>
+          {item.description && <span class="repo-desc" lang="en">{item.description}</span>}
+          <span class="repo-meta">
+            {item.stars != null && <span class="stars">★ {formatStars(item.stars)}</span>}
+            {item.language && <span>{item.language}</span>}
+            <span class="repo-open">{item.repo ? t('learning.openRepo') : t('learning.openLink')} ↗</span>
+          </span>
+        </a>
+      )}
+
+      {item.tags.length > 0 && <div class="tags">{item.tags.map((tag) => <span class="tag">{tag}</span>)}</div>}
+
+      {notesHtml && (
+        <section class="block">
+          <h2>{t('learning.notes')}</h2>
+          <div class="notes" set:html={notesHtml} />
+        </section>
+      )}
+
+      <section class="block">
+        <h2>{t('learning.written')}</h2>
+        {posts.length === 0 && <p class="none">{t('learning.noPosts')}</p>}
+        <ul class="posts">
+          {posts.map((p) => (
+            <li>
+              <a href={notePath(p)}>
+                <span class="p-title" lang={p.lang}>{p.title}</span>
+                <span class="p-meta">
+                  <time datetime={p.published_at ?? p.created_at}>{formatDate(new Date(p.published_at ?? p.created_at), lang)}</time>
+                  {p.lang !== lang && <span class="lang-badge">{languages[p.lang]}</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {todos.length > 0 && (
+        <section class="block">
+          <h2>{t('learning.todos')}</h2>
+          <ul class="todos">{todos.map((td) => <li class={td.status}>{td.status === 'done' ? '✓' : '◇'} {td.title}</li>)}</ul>
+        </section>
+      )}
+    </article>
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/learning/')}>{t('learning.back')}</a>
+    </footer>
+  </main>
+</Base>
+
+<style>
+  .item-page{padding-top:120px; max-width:860px}
+  .back{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); text-decoration:none}
+  .back:hover{color:var(--accent-2)}
+  .item{margin-top:28px}
+  .i-top{display:flex; gap:12px; align-items:center}
+  .i-status{font-family:var(--font-mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid var(--line-2); color:var(--muted)}
+  .i-status.s-learning{color:#fff; background:var(--accent); border-color:var(--accent)}
+  .i-status.s-learned{color:#8a5a10; background:rgba(217,154,43,.14); border-color:rgba(217,154,43,.45)}
+  .i-level{font-family:var(--font-mono); font-size:.7rem; color:var(--faint)}
+  .item .page-title{font-size:clamp(2rem, 4.6vw, 3.2rem); line-height:1.1; max-width:none; margin-top:.35em}
+  .repo{display:flex; flex-direction:column; gap:8px; margin-top:26px; padding:20px 22px; border-radius:18px; text-decoration:none; background:var(--bg-2); border:1px solid var(--line); color:var(--fg); transition:border-color .2s, box-shadow .2s}
+  .repo:hover{border-color:var(--accent); box-shadow:0 16px 40px -28px rgba(124,77,255,.6)}
+  .repo-name{font-family:var(--font-mono); color:var(--accent-2); word-break:break-all}
+  .repo-desc{color:var(--muted)}
+  .repo-meta{display:flex; flex-wrap:wrap; gap:14px; font-family:var(--font-mono); font-size:.75rem; color:var(--faint)}
+  .repo-meta .stars{color:var(--pollen)}
+  .repo-open{margin-left:auto; color:var(--accent-2)}
+  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:20px}
+  .block{margin-top:44px; padding-top:26px; border-top:1px solid var(--line)}
+  .block h2{font-family:var(--font-mono); font-weight:400; font-size:.78rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 14px}
+  .notes{font-size:1.04rem; line-height:1.8}
+  .notes :global(p){margin:0 0 1em}
+  .notes :global(a){color:var(--accent-2)}
+  .notes :global(code){font-family:var(--font-code); font-size:.88em; color:var(--accent-2); background:rgba(124,77,255,.08); border-radius:6px; padding:.12em .4em}
+  .notes :global(img){max-width:100%; border-radius:12px}
+  .none{color:var(--muted)}
+  .posts{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+  .posts a{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px; border-radius:14px; text-decoration:none;
+    background:linear-gradient(160deg, var(--card-1), var(--card-2)); border:1px solid var(--line); color:var(--fg-strong); transition:border-color .2s, transform .2s}
+  .posts a:hover{border-color:var(--line-2); transform:translateY(-2px)}
+  .p-title{font-weight:600}
+  .p-meta{display:flex; gap:8px; align-items:center; font-family:var(--font-mono); font-size:.72rem; color:var(--faint); white-space:nowrap}
+  .todos{margin:0; padding-left:0; list-style:none; display:grid; gap:6px}
+  .todos li.done{color:var(--muted)}
+  @media(max-width:600px){ .posts a{flex-direction:column; align-items:flex-start} }
+</style>

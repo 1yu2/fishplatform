@@ -4,55 +4,76 @@ import { render } from 'astro:content';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
 import { SITE } from '../../../site';
-import { defaultLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
-import { formatDate, getPosts, postPath, readingMinutes, type Post } from '../../../lib/posts';
-import '../../../components/garden/garden.css';
-import GardenCard from '../../../components/garden/GardenCard.astro';
-import GardenScript from '../../../components/garden/GardenScript.astro';
-import { getGarden, repoMetaFor } from '../../../lib/garden';
+import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatDate, getPosts, postPath, readingMinutes } from '../../../lib/posts';
+import { getProjects, projectPath } from '../../../lib/projects';
+import { blogEntries, cachePublic, learningByIds, notePath, publicTodosFor, publishedNotes, renderMarkdown } from '../../../lib/public-data';
+import { formatStars, type Learning, type Todo } from '../../../lib/studio-types';
 
-export async function getStaticPaths() {
-  const posts = await getPosts();
-  return posts.map((post) => ({
-    params: { locale: post.data.lang === defaultLang ? undefined : post.data.lang, slug: post.id },
-    props: { post },
-  }));
-}
-
-const { post } = Astro.props as { post: Post };
-const lang = post.data.lang as Lang;
+// Rendered on request: a post is either a Markdown file in the repo or a note published from Studio.
+export const prerender = false;
+const lang = langFromParam(Astro.params.locale);
+const slug = Astro.params.slug ?? '';
+if (!lang) return Astro.rewrite('/404');
 const t = useTranslations(lang);
-const { Content, headings } = await render(post);
+
+const files = await getPosts();
+const file = files.find((p) => p.id === slug && p.data.lang === lang);
+const note = file ? undefined : (await publishedNotes()).find((n) => n.slug === slug && n.lang === lang);
+if (!file && !note) return Astro.rewrite('/404');
+cachePublic(Astro.response.headers);
+
+// one shape for both sources
+const title = file ? file.data.title : note!.title;
+const summary = file ? file.data.summary : note!.summary;
+const date = file ? file.data.date : new Date(note!.published_at ?? note!.created_at);
+const tags = file ? file.data.tags : note!.tags;
+const minutes = readingMinutes(file ? file.body : note!.body);
+const href = file ? postPath(file) : notePath(note!);
+let Content: any = undefined;
+let html = '';
+let headings: { depth: number; slug: string; text: string }[] = [];
+if (file) ({ Content, headings } = await render(file));
+else ({ html, headings } = await renderMarkdown(note!.body));
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
-const all = await getPosts();
-// translations share a translationKey; the switcher goes to the translation, or that language's blog list
-const translations = post.data.translationKey
-  ? all.filter((p) => p.id !== post.id && p.data.translationKey === post.data.translationKey)
+// translations (repo files share a translationKey); the switcher goes to the translation or that language's blog list
+const translations = file?.data.translationKey
+  ? files.filter((p) => p.id !== file.id && p.data.translationKey === file.data.translationKey)
   : [];
 const alternates = Object.fromEntries(
   langs.map((l) => {
-    if (l === lang) return [l, postPath(post)];
+    if (l === lang) return [l, href];
     const tr = translations.find((p) => p.data.lang === l);
     return [l, tr ? postPath(tr) : localePath(l, '/blog/')];
   }),
 ) as Record<Lang, string>;
 
-// newer / older among posts in the same language
-const same = all.filter((p) => p.data.lang === lang);
-const i = same.findIndex((p) => p.id === post.id);
+// newer / older among all posts in this language
+const same = (await blogEntries()).filter((e) => e.lang === lang);
+const i = same.findIndex((e) => e.href === href);
 const newer = i > 0 ? same[i - 1] : undefined;
 const older = i >= 0 && i < same.length - 1 ? same[i + 1] : undefined;
 
-const canonical = post.data.canonical ?? new URL(postPath(post), Astro.site).href;
-// Garden items this post is about
-const garden = await getGarden();
-const related = post.data.related.map((r) => garden.find((g) => g.id === r.id)).filter((g) => g !== undefined);
-const relatedMeta = await repoMetaFor(related);
+// what a Studio note is linked to (only public learning items / to-dos are visible here)
+let relLearning: Learning[] = [];
+let relTodos: Todo[] = [];
+let relProjects: { href: string; title: string; lang: string }[] = [];
+if (note) {
+  [relLearning, relTodos] = await Promise.all([learningByIds(note.learning_ids), publicTodosFor({ todoIds: note.todo_ids })]);
+  const projects = await getProjects();
+  relProjects = note.projects.flatMap((key) => {
+    const group = projects.filter((p) => (p.data.translationKey ?? p.id) === key);
+    const p = group.find((x) => x.data.lang === lang) ?? group[0];
+    return p ? [{ href: projectPath(p), title: p.data.title, lang: p.data.lang }] : [];
+  });
+}
+const hasRelated = relLearning.length + relTodos.length + relProjects.length > 0;
 
-const origin = post.data.canonical ? new URL(post.data.canonical).hostname.replace(/^www\./, '') : '';
+const canonical = file?.data.canonical ?? new URL(href, Astro.site).href;
+const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.replace(/^www\./, '') : '';
 ---
-<Base lang={lang} title={`${post.data.title} — ${SITE.name}`} description={post.data.summary} alternates={alternates}>
+<Base lang={lang} title={`${title} — ${SITE.name}`} description={summary} alternates={alternates}>
   <link slot="head" rel="canonical" href={canonical} />
   <Nav lang={lang} current="blog" alternates={alternates} />
 
@@ -62,37 +83,63 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
         <a class="back" href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
         <header>
           <div class="meta">
-            <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date, lang)}</time>
-            <span>· {t('blog.minRead', { n: readingMinutes(post.body) })}</span>
+            <time datetime={date.toISOString()}>{formatDate(date, lang)}</time>
+            <span>· {t('blog.minRead', { n: minutes })}</span>
           </div>
-          <h1 class="page-title">{post.data.title}</h1>
-          <p class="page-lead">{post.data.summary}</p>
-          <div class="tags">{post.data.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
+          <h1 class="page-title">{title}</h1>
+          <p class="page-lead">{summary}</p>
+          <div class="tags">{tags.map((tag) => <span class="tag">{tag}</span>)}</div>
           {translations.length > 0 && (
             <p class="also">{t('blog.alsoIn')}: {translations.map((p) => <a href={postPath(p)} lang={p.data.lang}>{languages[p.data.lang]}</a>)}</p>
           )}
         </header>
 
         <div class="prose">
-          <Content />
+          {Content ? <Content /> : <Fragment set:html={html} />}
         </div>
 
-        {related.length > 0 && (
+        {hasRelated && (
           <section class="related">
             <h2>{t('blog.related')}</h2>
-            <div class="related-grid">
-              {related.map((item) => <GardenCard item={item} lang={lang} meta={relatedMeta[item.id]} compact />)}
-            </div>
+            {relLearning.length > 0 && (
+              <div class="rel-group">
+                <h3>{t('blog.relLearning')}</h3>
+                <div class="rel-cards">
+                  {relLearning.map((l) => (
+                    <a class="rel-card" href={localePath(lang, `/learning/${l.id}/`)}>
+                      <span class="rel-title">{l.kind === 'repo' ? '⌥' : '↗'} {l.title}</span>
+                      <span class="rel-meta">
+                        {l.repo && <span>{l.repo}</span>}
+                        {l.stars != null && <span class="stars">★ {formatStars(l.stars)}</span>}
+                        <span>{t(`learning.status.${l.status}`)}</span>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {relProjects.length > 0 && (
+              <div class="rel-group">
+                <h3>{t('blog.relProjects')}</h3>
+                <ul class="rel-list">{relProjects.map((p) => <li><a href={p.href} lang={p.lang}>{p.title}</a></li>)}</ul>
+              </div>
+            )}
+            {relTodos.length > 0 && (
+              <div class="rel-group">
+                <h3>{t('blog.relTodos')}</h3>
+                <ul class="rel-list">{relTodos.map((td) => <li class={td.status === 'done' ? 'done' : ''}>{td.status === 'done' ? '✓ ' : '◇ '}{td.title}</li>)}</ul>
+              </div>
+            )}
           </section>
         )}
 
-        {post.data.canonical && (
-          <p class="origin">{t('blog.originally')} <a href={post.data.canonical} rel="noopener">{origin}</a></p>
+        {file?.data.canonical && (
+          <p class="origin">{t('blog.originally')} <a href={file.data.canonical} rel="noopener">{origin}</a></p>
         )}
 
         <nav class="pager" aria-label="Posts">
-          {newer ? <a class="newer" href={postPath(newer)}><span>← {t('blog.newer')}</span>{newer.data.title}</a> : <span />}
-          {older ? <a class="older" href={postPath(older)}><span>{t('blog.older')} →</span>{older.data.title}</a> : <span />}
+          {newer ? <a class="newer" href={newer.href}><span>← {t('blog.newer')}</span>{newer.title}</a> : <span />}
+          {older ? <a class="older" href={older.href}><span>{t('blog.older')} →</span>{older.title}</a> : <span />}
         </nav>
       </article>
 
@@ -113,7 +160,6 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
       <a href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
     </footer>
   </main>
-  <GardenScript />
 </Base>
 
 <script is:inline>
@@ -150,7 +196,19 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
 
   .related{margin-top:54px; padding-top:26px; border-top:1px solid var(--line)}
   .related h2{font-family:var(--font-mono); font-weight:400; font-size:.78rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 16px}
-  .related-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap:14px}
+  .rel-group + .rel-group{margin-top:20px}
+  .rel-group h3{font-size:.85rem; font-weight:600; color:var(--muted); margin:0 0 10px}
+  .rel-cards{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap:12px}
+  .rel-card{display:flex; flex-direction:column; gap:6px; padding:14px 16px; border-radius:14px; text-decoration:none; color:var(--fg-strong);
+    background:linear-gradient(160deg, var(--card-1), var(--card-2)); border:1px solid var(--line); transition:border-color .2s, transform .2s}
+  .rel-card:hover{border-color:var(--line-2); transform:translateY(-2px)}
+  .rel-title{font-weight:600}
+  .rel-meta{display:flex; flex-wrap:wrap; gap:10px; font-family:var(--font-mono); font-size:.7rem; color:var(--faint)}
+  .rel-meta .stars{color:var(--pollen)}
+  .rel-list{margin:0; padding-left:1.1em; color:var(--fg)}
+  .rel-list li{margin:4px 0}
+  .rel-list li.done{color:var(--muted)}
+  .rel-list a{color:var(--accent-2)}
   .origin{margin-top:40px; font-size:.85rem; color:var(--faint); font-family:var(--font-mono)}
   .origin a{color:var(--accent-2)}
 
