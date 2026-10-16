@@ -1,0 +1,173 @@
+---
+import '../../../styles/site.css';
+import '../../../components/garden/garden.css';
+import { getEntry, render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import Nav from '../../../components/Nav.astro';
+import GardenScript from '../../../components/garden/GardenScript.astro';
+import { SITE } from '../../../site';
+import { defaultLang, htmlLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
+import { formatStars, gardenPath, getGarden, itemHref, itemTitle, repoMeta, type GardenItem } from '../../../lib/garden';
+import { formatDate, getPosts, postPath } from '../../../lib/posts';
+import { getProjects, projectPath } from '../../../lib/projects';
+
+export async function getStaticPaths() {
+  const items = await getGarden();
+  return langs.flatMap((lang) =>
+    items.map((item) => ({ params: { locale: lang === defaultLang ? undefined : lang, id: item.id }, props: { item, lang } })),
+  );
+}
+
+const { item, lang } = Astro.props as { item: GardenItem; lang: Lang };
+const t = useTranslations(lang);
+const d = item.data;
+const title = itemTitle(item, lang);
+const { Content } = await render(item);
+const hasNotes = Boolean(item.body?.trim());
+const meta = await repoMeta(d.repo);
+const href = itemHref(item);
+const iso = (x?: Date) => (x ? x.toISOString().slice(0, 10) : undefined);
+
+// posts that list this item in `related` (any language)
+const posts = (await getPosts()).filter((p) => p.data.related.some((r) => r.id === item.id));
+
+// the project it belongs to: the version in this language if one exists
+let project;
+if (d.project) {
+  const base = await getEntry(d.project);
+  if (base) {
+    const all = await getProjects();
+    const key = base.data.translationKey;
+    project = (key && all.find((p) => p.data.translationKey === key && p.data.lang === lang)) || base;
+  }
+}
+const alternates = Object.fromEntries(langs.map((l) => [l, gardenPath(l, item.id)])) as Record<Lang, string>;
+---
+<Base lang={lang} title={`${title} — ${SITE.name}`} description={meta?.description ?? t('meta.gardenDesc')} alternates={alternates}>
+  <Nav lang={lang} current="garden" alternates={alternates} />
+
+  <main class="wrap item-page">
+    <a class="back" href={localePath(lang, '/garden/')}>{t('garden.back')}</a>
+
+    <article class:list={['item', `s-${d.status}`]} data-item data-status={d.status} data-started={iso(d.started)} data-due={iso(d.due)} data-done={iso(d.done)}>
+      <div class="gd-top">
+        <span class="gd-status">{t(`garden.status.${d.status}`)}</span>
+        <span class={`gd-prio p${d.priority}`} title={t('garden.priority')}><i></i><i></i><i></i></span>
+        <span class="i-prio">{t('garden.priority')}: {t(`garden.p${d.priority}` as 'garden.p1')}</span>
+      </div>
+      <h1 class="page-title">{title}</h1>
+
+      {d.type === 'repo' && d.repo && (
+        <a class="repo" href={href} target="_blank" rel="noopener">
+          <span class="repo-name">{d.repo}</span>
+          {meta?.description && <span class="repo-desc" lang="en">{meta.description}</span>}
+          <span class="repo-meta">
+            {meta && <span class="gd-stars">★ {formatStars(meta.stars)}</span>}
+            {meta?.language && <span>{meta.language}</span>}
+            <span class="repo-open">{t('garden.openRepo')} ↗</span>
+          </span>
+        </a>
+      )}
+      {d.type !== 'repo' && href && <a class="link-btn" href={href} target="_blank" rel="noopener">{t('garden.openLink')} ↗</a>}
+
+      <dl class="dates">
+        {d.started && <div><dt>{t('garden.started')}</dt><dd>{formatDate(d.started, lang)}</dd></div>}
+        {d.due && <div><dt>{t('garden.due', { date: '' }).trim()}</dt><dd class="gd-due" data-overdue-label={t('garden.overdue')}>{formatDate(d.due, lang)}</dd></div>}
+        {d.done && <div><dt>{t('garden.finished')}</dt><dd>{formatDate(d.done, lang)}</dd></div>}
+        <div class="when-row"><dd class="gd-when" data-when={d.status === 'doing' ? iso(d.started) : d.status === 'done' ? iso(d.done) : undefined} data-tpl={d.status === 'doing' ? t('garden.since') : t('garden.doneAgo')} data-tpl0={d.status === 'doing' ? t('garden.sinceToday') : t('garden.doneToday')}></dd></div>
+      </dl>
+
+      {d.tags.length > 0 && <div class="tags">{d.tags.map((tag) => <span class="tag">{tag}</span>)}</div>}
+
+      {project && (
+        <p class="project">{t('garden.project')}: <a href={projectPath(project)} lang={project.data.lang}>{project.data.title}</a></p>
+      )}
+
+      {hasNotes && (
+        <section class="notes">
+          <h2>{t('garden.notes')}</h2>
+          <div class="prose"><Content /></div>
+        </section>
+      )}
+
+      <section class="written">
+        <h2>{t('garden.related')}</h2>
+        {posts.length === 0 && <p class="none">{t('garden.noPosts')}</p>}
+        <ul>
+          {posts.map((p) => (
+            <li>
+              <a href={postPath(p)}>
+                <span class="p-title" lang={p.data.lang}>{p.data.title}</span>
+                <span class="p-meta">
+                  <time datetime={p.data.date.toISOString()}>{formatDate(p.data.date, lang)}</time>
+                  {p.data.lang !== lang && <span class="lang-badge">{languages[p.data.lang]}</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </article>
+
+    <footer class="site-foot">
+      <span>© 2026 {SITE.name}</span>
+      <a href={localePath(lang, '/garden/')}>{t('garden.back')}</a>
+    </footer>
+  </main>
+  <GardenScript />
+</Base>
+
+<style>
+  .item-page{padding-top:120px; max-width:860px}
+  .back{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); text-decoration:none}
+  .back:hover{color:var(--accent-2)}
+  .item{margin-top:28px}
+  .item .gd-top{justify-content:flex-start}
+  .i-prio{font-family:var(--font-mono); font-size:.7rem; color:var(--faint)}
+  .item .page-title{font-size:clamp(2rem, 4.6vw, 3.2rem); line-height:1.1; max-width:none; margin-top:.35em}
+
+  .repo{
+    display:flex; flex-direction:column; gap:8px; margin-top:26px; padding:20px 22px; border-radius:18px; text-decoration:none;
+    background:var(--bg-2); border:1px solid var(--line); color:var(--fg);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .repo:hover{border-color:var(--accent); box-shadow:0 16px 40px -28px rgba(124,77,255,.6)}
+  .repo-name{font-family:var(--font-mono); font-size:1rem; color:var(--accent-2)}
+  .repo-desc{color:var(--muted)}
+  .repo-meta{display:flex; flex-wrap:wrap; gap:14px; font-family:var(--font-mono); font-size:.75rem; color:var(--faint)}
+  .repo-open{margin-left:auto; color:var(--accent-2)}
+  .link-btn{
+    display:inline-block; margin-top:22px; font-family:var(--font-mono); font-size:.85rem; color:var(--accent-2); text-decoration:none;
+    border:1px solid var(--line-2); border-radius:999px; padding:9px 16px; background:var(--bg-2);
+  }
+  .link-btn:hover{border-color:var(--accent)}
+
+  .dates{display:flex; flex-wrap:wrap; gap:10px 28px; margin:26px 0 0}
+  .dates div{display:flex; flex-direction:column; gap:2px}
+  .dates dt{font-family:var(--font-mono); font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)}
+  .dates dd{margin:0; color:var(--fg)}
+  .dates .when-row{justify-content:flex-end}
+  .dates .gd-when{font-family:var(--font-mono); font-size:.8rem; color:var(--accent-2)}
+  .overdue .dates .gd-due{color:#c43c58}
+  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:20px}
+  .project{margin:20px 0 0; color:var(--muted)}
+  .project a{color:var(--accent-2)}
+
+  .notes, .written{margin-top:44px; padding-top:26px; border-top:1px solid var(--line)}
+  .notes h2, .written h2{font-family:var(--font-mono); font-weight:400; font-size:.78rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 14px}
+  .notes .prose{font-size:1.04rem; line-height:1.8; margin-top:0; padding-top:0; border-top:0}   /* shared .prose is styled for full articles */
+  .prose :global(p){margin:0 0 1em}
+  .prose :global(code){font-family:var(--font-code); font-size:.88em; color:var(--accent-2); background:rgba(124,77,255,.08); border-radius:6px; padding:.12em .4em}
+  .prose :global(a){color:var(--accent-2)}
+  .none{color:var(--muted)}
+  .written ul{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+  .written a{
+    display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px; border-radius:14px; text-decoration:none;
+    background:linear-gradient(160deg, var(--card-1), var(--card-2)); border:1px solid var(--line); color:var(--fg-strong);
+    transition:border-color .2s, transform .2s;
+  }
+  .written a:hover{border-color:var(--line-2); transform:translateY(-2px)}
+  .p-title{font-weight:600}
+  .p-meta{display:flex; gap:8px; align-items:center; font-family:var(--font-mono); font-size:.72rem; color:var(--faint); white-space:nowrap}
+  @media(max-width:600px){ .written a{flex-direction:column; align-items:flex-start} }
+</style>

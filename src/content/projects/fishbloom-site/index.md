@@ -1,5 +1,6 @@
 ---
 title: Fishbloom — this site
+slug: fishbloom-site
 summary: A lavender personal site where a breathing particle sphere folds into a hexagon on scroll, in English, Japanese and Chinese.
 status: shipped
 stack: [Astro, Three.js, GLSL, TypeScript, Vercel]

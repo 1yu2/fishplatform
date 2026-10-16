@@ -1,4 +1,4 @@
-import { getCollection, getEntry, type CollectionEntry } from 'astro:content';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import { localePath, type Lang } from '../i18n/utils';
 
 export type Project = CollectionEntry<'projects'>;
@@ -27,10 +27,4 @@ export function projectsFor(all: Project[], lang: Lang): Project[] {
   }
   const pick = (g: Project[]) => g.find((p) => p.data.lang === lang) ?? g.find((p) => p.data.lang === 'en') ?? g[0];
   return all.filter((p) => pick(groups.get(p.data.translationKey ?? p.id)!) === p);
-}
-
-export async function getNow() {
-  const entry = await getEntry('now', 'now');
-  if (!entry) throw new Error('src/content/now.yaml needs a top-level `now:` entry');
-  return entry.data;
 }

@@ -2,6 +2,7 @@
 import '../../../styles/site.css';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import GardenStrip from '../../../components/garden/GardenStrip.astro';
 import { SITE } from '../../../site';
 import { languages, langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate, getPosts, postPath, readingMinutes } from '../../../lib/posts';
@@ -26,36 +27,41 @@ const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
       <p class="page-lead">{t('blog.lead')}</p>
     </header>
 
-    {tags.length > 0 && (
-      <div class="filter" role="group" aria-label={t('blog.filter')}>
-        <button type="button" class="chip" data-tag="" aria-pressed="true">{t('blog.all')}</button>
-        {tags.map((tag) => <button type="button" class="chip" data-tag={tag} aria-pressed="false">{tag}</button>)}
+    <div class="blog-body">
+      <div class="blog-main">
+      {tags.length > 0 && (
+        <div class="filter" role="group" aria-label={t('blog.filter')}>
+          <button type="button" class="chip" data-tag="" aria-pressed="true">{t('blog.all')}</button>
+          {tags.map((tag) => <button type="button" class="chip" data-tag={tag} aria-pressed="false">{tag}</button>)}
+        </div>
+      )}
+
+      {posts.length === 0 && <p class="empty">{t('blog.empty')}</p>}
+
+      {years.map((year) => (
+        <section class="year" data-year={year}>
+          <h2 class="year-label">{year}</h2>
+          <ol class="posts">
+            {posts.filter((p) => p.data.date.getFullYear() === year).map((p) => (
+              <li class="post" data-tags={p.data.tags.join('|')}>
+                <a href={postPath(p)}>
+                  <div class="meta">
+                    <time datetime={p.data.date.toISOString()}>{formatDate(p.data.date, lang)}</time>
+                    <span>· {t('blog.minRead', { n: readingMinutes(p.body) })}</span>
+                    {p.data.lang !== lang && <span class="lang-badge">{languages[p.data.lang]}</span>}
+                  </div>
+                  <h3 lang={p.data.lang}>{p.data.title}</h3>
+                  <p lang={p.data.lang}>{p.data.summary}</p>
+                  <div class="tags">{p.data.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
       </div>
-    )}
-
-    {posts.length === 0 && <p class="empty">{t('blog.empty')}</p>}
-
-    {years.map((year) => (
-      <section class="year" data-year={year}>
-        <h2 class="year-label">{year}</h2>
-        <ol class="posts">
-          {posts.filter((p) => p.data.date.getFullYear() === year).map((p) => (
-            <li class="post" data-tags={p.data.tags.join('|')}>
-              <a href={postPath(p)}>
-                <div class="meta">
-                  <time datetime={p.data.date.toISOString()}>{formatDate(p.data.date, lang)}</time>
-                  <span>· {t('blog.minRead', { n: readingMinutes(p.body) })}</span>
-                  {p.data.lang !== lang && <span class="lang-badge">{languages[p.data.lang]}</span>}
-                </div>
-                <h3 lang={p.data.lang}>{p.data.title}</h3>
-                <p lang={p.data.lang}>{p.data.summary}</p>
-                <div class="tags">{p.data.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
-              </a>
-            </li>
-          ))}
-        </ol>
-      </section>
-    ))}
+      <GardenStrip lang={lang} variant="side" />
+    </div>
 
     <footer class="site-foot">
       <span>© 2026 {SITE.name}</span>
@@ -86,6 +92,12 @@ const years = [...new Set(posts.map((p) => p.data.date.getFullYear()))];
 <style>
   .blog{padding-top:130px}
   .blog-head{max-width:760px}
+  .blog-body{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:clamp(30px,5vw,70px); align-items:start}
+  .blog-body :global(.gd-side){position:sticky; top:100px; margin-top:44px}
+  @media(max-width:1100px){
+    .blog-body{grid-template-columns:minmax(0,1fr)}
+    .blog-body :global(.gd-side){position:static; order:-1; margin-top:40px}
+  }
   .filter{display:flex; flex-wrap:wrap; gap:8px; margin:44px 0 10px}
   .chip{
     font-family:var(--font-mono); font-size:.74rem; letter-spacing:.03em; cursor:pointer;

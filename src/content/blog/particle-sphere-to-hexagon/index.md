@@ -1,9 +1,11 @@
 ---
 title: Morphing a particle sphere into a hexagon with Three.js
+slug: particle-sphere-to-hexagon
 date: 2026-10-16
 summary: How the homepage's breathing particle sphere flattens into a hollow hexagonal ring as you scroll — done entirely in the vertex shader, with one uniform driving the whole transition.
 tags: [Three.js, WebGL, Animation]
 lang: en
+related: [three-js, hexagon-morph-polish]
 ---
 
 The homepage opens on a breathing sphere of ~5,200 particles wrapped in a wireframe mesh. Scroll a little and it flattens into a hollow hexagonal ring facing the camera, then turns slowly in place. This post walks through how that works.

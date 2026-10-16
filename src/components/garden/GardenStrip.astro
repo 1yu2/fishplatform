@@ -1,0 +1,53 @@
+---
+import './garden.css';
+import GardenCard from './GardenCard.astro';
+import GardenScript from './GardenScript.astro';
+import { localePath, useTranslations, type Lang } from '../../i18n/utils';
+import { getGarden, repoMetaFor } from '../../lib/garden';
+
+interface Props {
+  lang: Lang;
+  /** 'home': titled sliding strip; 'side': compact list beside the blog */
+  variant?: 'home' | 'side';
+  max?: number;
+}
+const { lang, variant = 'home', max = variant === 'home' ? 8 : 6 } = Astro.props;
+const t = useTranslations(lang);
+// everything goes into the page in order; the browser hides finished items older than 7 days
+// and caps the list at `max`, so the next item moves up without a rebuild
+const items = await getGarden();
+const meta = await repoMetaFor(items);
+const all = localePath(lang, '/garden/');
+---
+{variant === 'home' ? (
+  <div class="gd-strip" data-garden>
+    <div class="gd-head">
+      <div>
+        <div class="eyebrow reveal">{t('garden.home.eyebrow')}</div>
+        <h2 class="gd-home-title reveal">{t('garden.home.title')}</h2>
+      </div>
+      <a class="gd-more" href={all}>{t('garden.seeAll')}</a>
+    </div>
+    <div class="gd-track" data-rotate data-autoplay data-max={max}>
+      {items.map((item) => <GardenCard item={item} lang={lang} meta={meta[item.id]} />)}
+    </div>
+    <p class="gd-empty">{t('garden.empty')}</p>
+  </div>
+) : (
+  <aside class="gd-side gd-strip" data-garden aria-label={t('garden.side.title')}>
+    <p class="gd-side-title"><span>{t('garden.side.title')}</span><a href={all}>{t('garden.seeAll')}</a></p>
+    <div class="gd-track" data-rotate data-max={max}>
+      {items.map((item) => <GardenCard item={item} lang={lang} meta={meta[item.id]} compact />)}
+    </div>
+    <p class="gd-empty">{t('garden.empty')}</p>
+  </aside>
+)}
+<GardenScript />
+
+<style is:global>
+  .garden-home{padding:30px 0 40px}
+  .gd-home-title{
+    font-family:"Archivo","PingFang SC","Hiragino Sans",sans-serif; font-weight:800; text-transform:uppercase;
+    font-size:var(--fs-h2, clamp(1.9rem, 5vw, 3.6rem)); line-height:1.02; margin:.4em 0 0; color:var(--fg-strong, #1f1a38);
+  }
+</style>

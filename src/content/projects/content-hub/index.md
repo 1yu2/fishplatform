@@ -1,5 +1,6 @@
 ---
 title: 内容站：作品、刷题与学习雷达
+slug: content-hub
 summary: 把这个站从「作品集」扩成个人内容中心：项目、/now、LeetCode 看板、学习雷达，最后接上站内搜索和 RSS。
 status: building
 stack: [Astro, Content Collections, YAML, GitHub API, Pagefind]

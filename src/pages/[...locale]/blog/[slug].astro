@@ -6,6 +6,10 @@ import Nav from '../../../components/Nav.astro';
 import { SITE } from '../../../site';
 import { defaultLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate, getPosts, postPath, readingMinutes, type Post } from '../../../lib/posts';
+import '../../../components/garden/garden.css';
+import GardenCard from '../../../components/garden/GardenCard.astro';
+import GardenScript from '../../../components/garden/GardenScript.astro';
+import { getGarden, repoMetaFor } from '../../../lib/garden';
 
 export async function getStaticPaths() {
   const posts = await getPosts();
@@ -41,6 +45,11 @@ const newer = i > 0 ? same[i - 1] : undefined;
 const older = i >= 0 && i < same.length - 1 ? same[i + 1] : undefined;
 
 const canonical = post.data.canonical ?? new URL(postPath(post), Astro.site).href;
+// Garden items this post is about
+const garden = await getGarden();
+const related = post.data.related.map((r) => garden.find((g) => g.id === r.id)).filter((g) => g !== undefined);
+const relatedMeta = await repoMetaFor(related);
+
 const origin = post.data.canonical ? new URL(post.data.canonical).hostname.replace(/^www\./, '') : '';
 ---
 <Base lang={lang} title={`${post.data.title} — ${SITE.name}`} description={post.data.summary} alternates={alternates}>
@@ -67,6 +76,15 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
         <div class="prose">
           <Content />
         </div>
+
+        {related.length > 0 && (
+          <section class="related">
+            <h2>{t('blog.related')}</h2>
+            <div class="related-grid">
+              {related.map((item) => <GardenCard item={item} lang={lang} meta={relatedMeta[item.id]} compact />)}
+            </div>
+          </section>
+        )}
 
         {post.data.canonical && (
           <p class="origin">{t('blog.originally')} <a href={post.data.canonical} rel="noopener">{origin}</a></p>
@@ -95,6 +113,7 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
       <a href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
     </footer>
   </main>
+  <GardenScript />
 </Base>
 
 <script is:inline>
@@ -129,6 +148,9 @@ const origin = post.data.canonical ? new URL(post.data.canonical).hostname.repla
 
   /* article body: .prose lives in styles/site.css (shared with project pages) */
 
+  .related{margin-top:54px; padding-top:26px; border-top:1px solid var(--line)}
+  .related h2{font-family:var(--font-mono); font-weight:400; font-size:.78rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 16px}
+  .related-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap:14px}
   .origin{margin-top:40px; font-size:.85rem; color:var(--faint); font-family:var(--font-mono)}
   .origin a{color:var(--accent-2)}
 

@@ -4,7 +4,7 @@ import { SITE } from '../site';
 
 interface Props {
   lang: Lang;
-  current?: 'home' | 'projects' | 'blog' | 'now' | 'about';
+  current?: 'home' | 'projects' | 'blog' | 'garden' | 'about';
   /** this page in each language, for the language menu */
   alternates: Record<Lang, string>;
 }
@@ -21,7 +21,7 @@ const home = localePath(lang, '/');
       <a class="extra" href={`${home}#services`}>{t('nav.services')}</a>
       <a href={localePath(lang, '/projects/')} aria-current={current === 'projects' ? 'page' : undefined}>{t('nav.projects')}</a>
       <a href={localePath(lang, '/blog/')} aria-current={current === 'blog' ? 'page' : undefined}>{t('nav.blog')}</a>
-      <a href={localePath(lang, '/now/')} aria-current={current === 'now' ? 'page' : undefined}>{t('nav.now')}</a>
+      <a href={localePath(lang, '/garden/')} aria-current={current === 'garden' ? 'page' : undefined}>{t('nav.garden')}</a>
       <a href={localePath(lang, '/about/')} aria-current={current === 'about' ? 'page' : undefined}>{t('nav.about')}</a>
       <a class="extra" href={SITE.github} target="_blank" rel="noopener">{t('nav.contact')}</a>
     </nav>

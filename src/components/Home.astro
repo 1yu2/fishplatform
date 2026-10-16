@@ -2,6 +2,7 @@
 import { localePath, useTranslations, type Lang } from '../i18n/utils';
 import Nav from './Nav.astro';
 import GitHubLink from './GitHubLink.astro';
+import GardenStrip from './garden/GardenStrip.astro';
 import { SITE } from '../site';
 
 interface Props { lang: Lang; alternates: Record<Lang, string>; }
@@ -86,6 +87,10 @@ const t = useTranslations(lang);
         <p>{t('home.card3.body')}</p>
       </article>
     </div>
+  </section>
+
+  <section id="garden" class="garden-home" aria-label="Garden">
+    <GardenStrip lang={lang} />
   </section>
 
   <section id="contact" class="foot-cta" aria-label="Contact">
