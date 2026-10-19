@@ -109,40 +109,72 @@ textarea.st-inline{background:var(--bg-2); border-color:var(--line-2); resize:ve
 .st-card-actions{display:flex; gap:16px; padding:0 6px}
 .st-card .st-detail{grid-column:auto}
 
-/* ---------- writing ---------- */
-.st-writing{display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; align-items:start}
-.st-notes{position:sticky; top:84px; display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 110px); overflow:auto}
+/* ---------- writing: full window, editor first ---------- */
+.st-main.wide{max-width:none; padding-top:16px; padding-bottom:16px}
+.st-writing{display:grid; grid-template-columns:250px minmax(0,1fr); gap:18px; align-items:start}
+.st-writing.list-closed{grid-template-columns:minmax(0,1fr)}
+.st-notes{position:sticky; top:76px; display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 96px); overflow:auto; padding-right:2px}
+.st-notes-head{display:flex; gap:6px}
+.st-btn.grow{flex:1}
 .st-notes ul{list-style:none; margin:0; padding:0; display:grid; gap:4px}
 .st-notes li button{width:100%; text-align:left; border:1px solid transparent; background:none; cursor:pointer; border-radius:12px; padding:9px 11px; font:inherit; display:flex; flex-direction:column; gap:3px}
 .st-notes li button:hover{background:rgba(124,77,255,.06)}
 .st-notes li button.on{background:var(--bg-2); border-color:var(--line-2)}
 .st-notes .t{font-weight:600; color:var(--fg-strong); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .st-notes .m{display:flex; gap:8px; align-items:center; font-size:.72rem; color:var(--faint)}
-.st-badge{font-family:var(--font-mono); font-size:.66rem; border-radius:999px; padding:1px 8px; border:1px solid var(--line-2); color:var(--muted)}
+.st-badge{font-family:var(--font-mono); font-size:.66rem; border-radius:999px; padding:1px 8px; border:1px solid var(--line-2); color:var(--muted); white-space:nowrap}
 .st-badge.published{color:#fff; background:var(--accent); border-color:var(--accent)}
-.st-editor-empty{padding:60px 0; text-align:center}
-.st-editor{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px 20px}
-.st-editor-head, .st-toolbar, .st-panes{grid-column:1}
-.st-meta-panel{grid-column:2; grid-row:1 / span 3; display:flex; flex-direction:column; gap:14px; padding:16px; border-radius:18px; background:var(--bg-2); border:1px solid var(--line); align-self:start; position:sticky; top:84px}
+.st-editor-empty{padding:80px 0; text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px}
+
+.st-editor{display:grid; grid-template-columns:minmax(0,1fr); gap:18px; align-items:start; min-width:0}
+.st-editor.meta-open{grid-template-columns:minmax(0,1fr) 320px}
+.st-editor-main{display:flex; flex-direction:column; gap:10px; min-width:0}
+.st-editor-head{display:flex; align-items:center; gap:10px}
+.st-note-title{flex:1; min-width:0; font-family:var(--font-display); font-weight:700; font-size:clamp(1.5rem, 2.4vw, 2rem); color:var(--fg-strong); border:1px solid transparent; background:transparent; border-radius:10px; padding:4px 8px}
+.st-save{font-family:var(--font-mono); font-size:.7rem; color:var(--faint); white-space:nowrap}
+.st-save.dirty{color:var(--pollen)}
+.st-icon.on{background:rgba(124,77,255,.12); color:var(--accent-2)}
+
+.st-toolbar{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 8px; border-radius:14px; background:var(--bg-2); border:1px solid var(--line); position:sticky; top:68px; z-index:5}
+.st-tool-group{display:flex; gap:2px; padding-right:6px; margin-right:2px; border-right:1px solid var(--line)}
+.st-tool-group:last-of-type{border-right:0}
+.st-toolbar button{border:0; background:none; cursor:pointer; font:inherit; font-size:.88rem; min-width:34px; height:32px; padding:0 8px; border-radius:8px; color:var(--fg); white-space:nowrap}
+.st-toolbar button:hover, .st-toolbar button.on{background:rgba(124,77,255,.1); color:var(--accent-2)}
+.st-toolbar .st-seg button{height:auto; min-width:0}
+.st-menu-wrap{position:relative}
+.st-menu{position:absolute; top:calc(100% + 6px); left:0; z-index:20; min-width:200px; max-height:340px; overflow:auto; display:flex; flex-direction:column; padding:6px;
+  background:var(--bg-2); border:1px solid var(--line-2); border-radius:14px; box-shadow:0 20px 40px -20px rgba(60,40,140,.45)}
+.st-menu button{text-align:left; height:auto !important; padding:8px 10px !important; font-size:.86rem !important}
+.st-menu.grid{display:grid; grid-template-columns:repeat(3, 1fr); min-width:240px}
+.st-menu .st-muted{margin:8px 10px; font-size:.82rem}
+
+/* the editor and preview fill the rest of the window */
+.st-panes{display:grid; gap:14px; height:calc(100vh - 222px); min-height:420px}
+.st-panes.split{grid-template-columns:1fr 1fr}
+.st-body{
+  height:100%; width:100%; resize:none; overflow:auto;
+  font-family:var(--font-code); font-size:1rem; line-height:1.85; color:var(--fg); tab-size:2;
+  background:var(--bg-2); border:1px solid var(--line-2); border-radius:16px; padding:22px 26px;
+}
+.st-panes.write .st-body{padding:28px max(26px, calc((100% - 860px) / 2))}   /* readable line length when wide */
+.st-preview{height:100%; overflow:auto; background:rgba(255,255,255,.6); border:1px solid var(--line); border-radius:16px; padding:6px 30px 30px}
+.st-panes.preview .st-preview{padding:10px max(30px, calc((100% - 820px) / 2)) 40px}
+.st-preview.prose{margin-top:0; border-top:1px solid var(--line); padding-top:10px}
+.st-preview img{max-width:100%; border-radius:10px}
+.st-preview pre{background:var(--bg-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; overflow:auto}
+.st-preview table{border-collapse:collapse; width:100%; font-size:.92rem}
+.st-preview th, .st-preview td{border:1px solid var(--line); padding:6px 10px}
+.st-preview input[type="checkbox"]{accent-color:var(--accent); margin-right:6px}
+.st-preview details{border:1px solid var(--line); border-radius:12px; padding:8px 14px; margin:0 0 1em}
+.st-status{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-family:var(--font-mono); font-size:.7rem; color:var(--faint); padding:0 4px}
+
+.st-meta-panel{display:flex; flex-direction:column; gap:14px; padding:16px; border-radius:18px; background:var(--bg-2); border:1px solid var(--line); position:sticky; top:76px; max-height:calc(100vh - 96px); overflow:auto}
 .st-meta-panel > label, .st-row2 label{display:flex; flex-direction:column; gap:5px; font-size:.75rem; color:var(--muted)}
 .st-row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 .st-publish{display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.8rem}
 .st-publish a{color:var(--accent-2)}
+.st-meta-foot{display:flex; justify-content:space-between; gap:10px; padding-top:4px}
 .st-spacer{flex:1}
-.st-editor-head{display:flex; align-items:center; gap:12px}
-.st-note-title{flex:1; font-family:var(--font-display); font-weight:700; font-size:1.6rem; color:var(--fg-strong); border:1px solid transparent; background:transparent; border-radius:10px; padding:6px 8px; min-width:0}
-.st-save{font-family:var(--font-mono); font-size:.7rem; color:var(--faint); white-space:nowrap}
-.st-save.dirty{color:var(--pollen)}
-.st-toolbar{display:flex; flex-wrap:wrap; gap:4px; align-items:center; padding:6px; border-radius:12px; background:var(--bg-2); border:1px solid var(--line)}
-.st-toolbar > button, .st-upload{border:0; background:none; cursor:pointer; font:inherit; font-size:.85rem; min-width:34px; padding:6px 8px; border-radius:8px; color:var(--fg)}
-.st-toolbar > button:hover, .st-upload:hover{background:rgba(124,77,255,.08); color:var(--accent-2)}
-.st-panes{display:grid; gap:14px; min-height:60vh}
-.st-panes.split{grid-template-columns:1fr 1fr}
-.st-body{font-family:var(--font-code); font-size:.92rem; line-height:1.75; color:var(--fg); background:var(--bg-2); border:1px solid var(--line-2); border-radius:14px; padding:16px 18px; resize:vertical; min-height:60vh; width:100%}
-.st-preview{background:rgba(255,255,255,.55); border:1px solid var(--line); border-radius:14px; padding:6px 22px 18px; overflow:auto; min-height:60vh}
-.st-preview.prose{margin-top:0; border-top:1px solid var(--line); padding-top:6px}
-.st-preview img{max-width:100%; border-radius:10px}
-.st-preview pre{background:var(--bg-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; overflow:auto}
 .st-links{border:0; padding:0; margin:0; display:flex; flex-direction:column; gap:6px}
 .st-links legend{font-size:.75rem; color:var(--muted); margin-bottom:6px}
 .st-links details{border:1px solid var(--line); border-radius:12px; padding:6px 10px}
@@ -150,11 +182,26 @@ textarea.st-inline{background:var(--bg-2); border-color:var(--line-2); resize:ve
 .st-links summary b{font-family:var(--font-mono); font-size:.7rem; color:#fff; background:var(--accent); border-radius:999px; padding:0 7px; margin-left:4px}
 .st-check-row{display:flex; gap:8px; align-items:flex-start; font-size:.84rem; padding:4px 0; cursor:pointer}
 .st-check-row input{accent-color:var(--accent); margin-top:3px}
+
+/* focus mode: only the editor */
+html.st-focus .st-bar, html.st-focus .st-notes, html.st-focus .st-warn, html.st-focus .st-meta-panel{display:none}
+html.st-focus .st-editor.meta-open{grid-template-columns:minmax(0,1fr)}
+html.st-focus .st-main.wide{padding-top:12px}
+html.st-focus .st-writing{grid-template-columns:minmax(0,1fr)}
+html.st-focus .st-toolbar{top:8px}
+html.st-focus .st-panes{height:calc(100vh - 150px)}
+
 @media(max-width:1100px){
-  .st-writing{grid-template-columns:1fr}
+  .st-writing{grid-template-columns:minmax(0,1fr)}
   .st-notes{position:static; max-height:none}
-  .st-notes ul{grid-auto-flow:column; grid-auto-columns:minmax(180px, 1fr); overflow-x:auto}
-  .st-editor{grid-template-columns:1fr}
-  .st-meta-panel{grid-column:1; grid-row:auto; position:static}
-  .st-panes.split{grid-template-columns:1fr}
+  .st-notes ul{grid-auto-flow:column; grid-auto-columns:minmax(170px, 1fr); overflow-x:auto}
+  .st-editor.meta-open{grid-template-columns:minmax(0,1fr)}
+  .st-meta-panel{position:static; max-height:none}
+  .st-panes.split{grid-template-columns:1fr; height:auto}
+  .st-panes.split .st-body, .st-panes.split .st-preview{height:65vh}
+}
+@media(max-width:640px){
+  .st-panes{height:calc(100vh - 260px)}
+  .st-body{padding:16px; font-size:.95rem}
+  .st-tool-group{border-right:0; padding-right:0}
 }

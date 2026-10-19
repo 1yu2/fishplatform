@@ -73,7 +73,7 @@ function Studio({ projects }: { projects: ProjectRef[] }) {
         </p>
       )}
 
-      <main class="st-main">
+      <main class={`st-main ${tab === 'writing' ? 'wide' : ''}`}>   {/* writing uses the full window width */}
         {tab === 'todo' && <TodoTab projects={projects} />}
         {tab === 'learning' && <LearningTab />}
         {tab === 'writing' && <WritingTab projects={projects} />}
