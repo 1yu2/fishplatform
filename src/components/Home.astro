@@ -1,7 +1,6 @@
 ---
 import { localePath, useTranslations, type Lang } from '../i18n/utils';
 import Nav from './Nav.astro';
-import GitHubLink from './GitHubLink.astro';
 import NowStrip from './now/NowStrip.astro';
 import { getPosts } from '../lib/posts';
 import { SITE } from '../site';
@@ -102,7 +101,6 @@ const filePosts = (await getPosts()).length;
   <section id="contact" class="foot-cta" aria-label="Contact">
     <div class="eyebrow reveal" style="justify-content:center">{t('home.contact.eyebrow')}</div>
     <h2 class="reveal">{t('home.contact.title')}</h2>
-    <div class="mail reveal"><GitHubLink lang={lang} /></div>
     <footer class="end">
       <span>© 2026 {SITE.name}</span>
       <span>{t('home.footer.tagline')}</span>

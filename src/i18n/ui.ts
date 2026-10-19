@@ -70,7 +70,6 @@ export const ui = {
     'intro.enter': 'Enter',
     'common.copy': 'Copy',
     'common.copied': 'Copied',
-    'contact.github': 'Find me on GitHub',
 
     'home.hero.eyebrow': '001 — Growth, automated',
     'home.hero.title': 'Growing smarter with AI',
@@ -231,7 +230,6 @@ export const ui = {
     'intro.enter': '入る',
     'common.copy': 'コピー',
     'common.copied': 'コピーしました',
-    'contact.github': 'GitHubで見る',
 
     'home.hero.eyebrow': '001 — 成長を、自動化する',
     'home.hero.title': 'AIで、もっと賢く成長する',
@@ -392,7 +390,6 @@ export const ui = {
     'intro.enter': '进入',
     'common.copy': '复制',
     'common.copied': '已复制',
-    'contact.github': '在 GitHub 上找到我',
 
     'home.hero.eyebrow': '001 — 让增长自动化',
     'home.hero.title': '用 AI 更聪明地成长',
