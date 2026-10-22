@@ -246,18 +246,33 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   }
 
   /* ---------- images: paste, drop or pick -> Supabase Storage -> Markdown ---------- */
+  // Swap a placeholder for its final text without touching the user's caret (they may be typing elsewhere by now).
+  function swapText(from: string, to: string) {
+    const el = ta.current;
+    if (!el) return;
+    const i = el.value.indexOf(from);
+    if (i < 0) return;
+    const { selectionStart: s, selectionEnd: e } = el;
+    const d = to.length - from.length;
+    const shift = (x: number) => (x >= i + from.length ? x + d : x > i ? i + to.length : x);
+    edit({ body: el.value.slice(0, i) + to + el.value.slice(i + from.length) });
+    if (document.activeElement === el) requestAnimationFrame(() => el.setSelectionRange(shift(s), shift(e)));
+  }
   async function upload(files: File[]) {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
     setUploading(true);
-    for (const f of images) {
-      if (f.size > 8 * 1024 * 1024) { toast(`${f.name} 太大了(上限 8MB)`); continue; }
+    // Drop placeholders at the paste point right away, so edits made while uploading can't shift where the images land.
+    const jobs = images.map((f) => ({ f, ph: `![上传中 ${Math.random().toString(36).slice(2, 8)}…]()` }));
+    insertBlock(jobs.map((j) => j.ph).join('\n\n'));
+    for (const { f, ph } of jobs) {
+      if (f.size > 8 * 1024 * 1024) { toast(`${f.name} 太大了(上限 8MB)`); swapText(ph, ''); continue; }
       const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
       const path = `notes/${note.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await sb.storage.from('studio').upload(path, f, { contentType: f.type, cacheControl: '31536000' });
-      if (error) { toast(errText(error)); continue; }
+      if (error) { toast(errText(error)); swapText(ph, ''); continue; }
       const { data } = sb.storage.from('studio').getPublicUrl(path);
-      insertBlock(`![${f.name.replace(/\.[^.]+$/, '')}](${data.publicUrl})`);
+      swapText(ph, `![${f.name.replace(/\.[^.]+$/, '')}](${data.publicUrl})`);
     }
     setUploading(false);
   }
