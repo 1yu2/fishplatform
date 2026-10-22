@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { studioClient } from '../lib/supabase';
@@ -271,12 +271,18 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   };
 
   /* ---------- split view: keep the preview at the same relative scroll position ---------- */
+  const lastTyped = useRef(0);
   function syncScroll() {
     const a = ta.current, b = pv.current;
     if (!a || !b || view !== 'split') return;
+    if (Date.now() - lastTyped.current < 400) return; // scroll caused by typing, not by the user dragging
     const r = a.scrollTop / Math.max(1, a.scrollHeight - a.clientHeight);
     b.scrollTop = r * (b.scrollHeight - b.clientHeight);
   }
+
+  // The preview HTML is replaced on every keystroke; keep its scroll position instead of letting it clamp/jump.
+  const pvTop = useRef(0);
+  useLayoutEffect(() => { if (pv.current) pv.current.scrollTop = pvTop.current; }, [html]);
 
   /* ---------- publishing ---------- */
   async function publish() {
@@ -393,11 +399,11 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
             <textarea ref={ta} class="st-body" spellcheck={false}
               placeholder={'用 Markdown 写作…\n\n# 标题\n**加粗**  *斜体*  `代码`\n- 列表(回车自动续写)\n> 引用\n\n可以直接粘贴或拖入图片。'}
               value={n.body}
-              onInput={(e) => edit({ body: (e.target as HTMLTextAreaElement).value })}
+              onInput={(e) => { lastTyped.current = Date.now(); edit({ body: (e.target as HTMLTextAreaElement).value }); }}
               onKeyDown={onKeyDown} onPaste={onPaste} onDrop={onDrop} onScroll={syncScroll} />
           )}
           {view !== 'write' && (
-            <article ref={pv} class="st-preview prose" dangerouslySetInnerHTML={{ __html: html || '<p class="st-muted">预览会显示在这里</p>' }} />
+            <article ref={pv} class="st-preview prose" onScroll={(e) => { pvTop.current = (e.currentTarget as HTMLElement).scrollTop; }} dangerouslySetInnerHTML={{ __html: html || '<p class="st-muted">预览会显示在这里</p>' }} />
           )}
         </div>
 
