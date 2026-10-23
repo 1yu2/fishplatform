@@ -21,7 +21,7 @@
 - **Studio(`/studio`,只有站点主人能登录)**:用户要的三个功能,数据在 Supabase(Postgres + 登录 + 图片存储)。
   - **待办** `todos`:快速添加、优先级 1–3、截止日期、进行中/完成、可关联学习条目或项目;`is_public` 默认私密,勾「公开」才上网站。
   - **学习清单** `learning`:粘贴 GitHub 地址自动填名字/星数/简介/语言(浏览器直接调 GitHub API);重要程度、状态 想学/在学/学完、标签、笔记。
-  - **写作** `notes`:Markdown 编辑 + 实时预览 + 粘贴/拖入图片(传到 Storage 的 `studio` bucket);摘要、标签、语言、slug;关联 learning_ids / todo_ids / projects;「发布到博客」= status published,**无需重新部署**。自动保存(1.2s 防抖)。
+  - **写作** `notes`:单栏所见即所得编辑器(TipTap v3 + `tiptap-markdown`,正文仍以 Markdown 字符串存库;扩展配置在 `src/studio/tiptap.ts`):表格可拖边框调列宽(有列宽/单元格对齐时序列化成 HTML 表格,否则是 GFM)、文字对齐(顶层段落/标题序列化成 `<div style="text-align:…">`)、折叠块、任务列表;粘贴/拖入图片(传到 Storage 的 `studio` bucket);图表/思维导图是 `#diagram-xxx`/`#mindmap-xxx` 占位图片,点开 draw.io / mind-elixir 编辑,存成 `.drawio.svg`/`.mindmap.svg`,尺寸与裁剪写在图片链接 `#w=60;c=t,r,b,l;n=比例` 里(`src/lib/diagram.ts`,博客渲染时转成样式);拖四角缩放、拖边裁剪;摘要、标签、语言、slug;关联 learning_ids / todo_ids / projects;「发布到博客」= status published,**无需重新部署**。自动保存(1.2s 防抖)。
   - 代码:`src/studio/*.tsx`(Preact,`client:only`)、`src/pages/studio.astro`、`src/lib/supabase.ts`、`src/lib/studio-types.ts`。界面是中文(只给主人用)。
   - 数据库:`supabase/schema.sql`(表 + RLS:访客只读公开/已发布的行,只有 `app_owner` 能写)、`supabase/seed.sql`(原花园数据)、`supabase/README.md`(用户自己建项目、建账号、填密钥的步骤)。
   - 环境变量:`PUBLIC_SUPABASE_URL`、`PUBLIC_SUPABASE_ANON_KEY`(本地 `.env`,线上 Vercel 环境变量;都是公开密钥,安全靠 RLS)。**不要**用 service_role key。没配置时网站照常运行,只是没有 Studio 数据。

@@ -83,7 +83,7 @@ export default function MindMapModal({ data, onSave, onClose }: {
     const svg = (await m.exportSvg(false).text()).replace(/<rect x="0" y="0"[^>]*><\/rect>/, '');
     // keep the source inside the file so the map can be opened again
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify({ d: m.getData(), t: themeId, l: layoutId, c: { b: branch, r: root } }))));
-    onSave(new Blob([svg.replace(/<svg[^>]*>/, (tag) => `${tag}<metadata id="mindmap-data">${b64}</metadata>`)], { type: 'image/svg+xml' }));
+    onSave(new Blob([svg.replace(/<svg[^>]*>/, (tag: string) => `${tag}<metadata id="mindmap-data">${b64}</metadata>`)], { type: 'image/svg+xml' }));
     onClose();
   }
 

@@ -130,7 +130,7 @@ a:focus-visible, button:focus-visible{outline:2px solid var(--accent-2); outline
 .prose blockquote{margin:1.4em 0; padding:.2em 0 .2em 1.1em; border-left:3px solid var(--accent-soft); color:var(--muted)}
 .prose img{max-width:100%; height:auto; border-radius:14px; border:1px solid var(--line)}
 .prose hr{border:0; border-top:1px solid var(--line); margin:2.4em 0}
-.prose table{width:100%; border-collapse:collapse; font-size:.92rem; margin:0 0 1.4em; display:block; overflow-x:auto}
+.prose table{width:100%; max-width:100%; border-collapse:collapse; font-size:.92rem; margin:0 0 1.4em; display:block; overflow-x:auto}
 .prose th, .prose td{border-bottom:1px solid var(--line); padding:8px 10px; text-align:left}
 .prose th{font-family:var(--font-mono); font-size:.75rem; letter-spacing:.06em; color:var(--muted); font-weight:400}
 .prose :not(pre) > code{font-family:var(--font-code); font-size:.88em; color:var(--accent-2); background:rgba(124,77,255,.08); border-radius:6px; padding:.12em .4em}
@@ -147,3 +147,9 @@ a:focus-visible, button:focus-visible{outline:2px solid var(--accent-2); outline
 /* cropped diagram: a clipping box around the shifted, scaled image */
 .dg-crop{display:block; position:relative; overflow:hidden; margin:1.4em auto; max-width:100%}
 .prose .dg-crop img[src], .st-preview .dg-crop img[src]{position:absolute; max-width:none; margin:0; border:0; border-radius:0; height:auto; display:block}
+
+/* alignment: tables inside an aligned block, and the `align` attribute of table columns (the th/td rule above would override it) */
+.prose th[align="center"], .prose td[align="center"]{text-align:center}
+.prose th[align="right"], .prose td[align="right"]{text-align:right}
+.prose [style*="text-align:center"] table, .prose [style*="text-align:right"] table{display:table; width:auto; max-width:100%; margin-left:auto}
+.prose [style*="text-align:center"] table{margin-right:auto}

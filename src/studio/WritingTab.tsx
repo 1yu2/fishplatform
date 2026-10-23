@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { Editor as TipEditor } from '@tiptap/core';
 import { studioClient } from '../lib/supabase';
 import type { Learning, Note, Todo } from '../lib/studio-types';
-import { diagramSrc, parseDiagramSize, sizeDiagramImages } from '../lib/diagram';
+import { diagramSrc, parseDiagramSize } from '../lib/diagram';
+import { editorExtensions } from './tiptap';
 import DiagramModal from './DiagramModal';
 import MindMapModal from './MindMapModal';
 import { TagInput, errText, slugify, useToast, type ProjectRef } from './shared';
@@ -16,6 +16,22 @@ const postUrl = (n: Note) => `${n.lang === 'en' ? '' : `/${n.lang}`}/blog/${n.sl
 function pref<T extends string>(key: string, fallback: T): [T, (v: T) => void] {
   const [v, setV] = useState<T>(() => { try { return (localStorage.getItem(`studio-${key}`) as T) || fallback; } catch { return fallback; } });
   return [v, (x: T) => { setV(x); try { localStorage.setItem(`studio-${key}`, x); } catch {} }];
+}
+
+function AlignIcon({ k }: { k: 'left' | 'center' | 'right' }) {
+  const w = [12, 8, 12, 6], x = (n: number) => (k === 'left' ? 2 : k === 'right' ? 14 - n : (16 - n) / 2);
+  return <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{w.map((n, i) => <rect x={x(n)} y={2.5 + i * 3.4} width={n} height="1.6" rx=".8" fill="currentColor" />)}</svg>;
+}
+
+function TableAlignIcon({ k }: { k: 'left' | 'center' | 'right' }) {
+  const x = k === 'left' ? 2 : k === 'right' ? 8 : 5;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M1.5 2v12M14.5 2v12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".45" />
+      <rect x={x} y="4" width="6" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.4" />
+      <path d={`M${x} 8h6`} stroke="currentColor" stroke-width="1.2" />
+    </svg>
+  );
 }
 
 export default function WritingTab({ projects }: { projects: ProjectRef[] }) {
@@ -98,6 +114,8 @@ export default function WritingTab({ projects }: { projects: ProjectRef[] }) {
   );
 }
 
+const markdownOf = (e: TipEditor) => ((e.storage as any).markdown.getMarkdown() as string).replace(/\n+$/, '');
+
 function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreate, onChange, onDelete, toast }: {
   note: Note;
   learning: Pick<Learning, 'id' | 'title' | 'status' | 'url'>[];
@@ -113,16 +131,17 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   const sb = studioClient();
   const [n, setN] = useState<Note>(note);
   const [saveState, setSaveState] = useState<'saved' | 'dirty' | 'saving'>('saved');
-  const [view, setView] = pref<'write' | 'split' | 'preview'>('editor-view', typeof window !== 'undefined' && window.innerWidth > 1000 ? 'split' : 'write');
   const [metaOpen, setMetaOpen] = pref<'1' | '0'>('editor-meta', typeof window !== 'undefined' && window.innerWidth > 1400 ? '1' : '0');
   const [focus, setFocus] = useState(false);
   const [menu, setMenu] = useState<'' | 'insert' | 'code' | 'learning' | 'project'>('');
   const [uploading, setUploading] = useState(false);
-  const ta = useRef<HTMLTextAreaElement>(null);
-  const pv = useRef<HTMLElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const ed = useRef<TipEditor | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const pending = useRef<Partial<Note>>({});
   const timer = useRef<number>();
+  const [saveTick, setSaveTick] = useState(0); // bumped on every editor transaction: re-render toolbar state, re-measure the image frame
 
   /* ---------- autosave: batch edits, write 1.2s after the last change ---------- */
   function edit(patch: Partial<Note>) {
@@ -166,103 +185,106 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     return () => document.removeEventListener('mousedown', close);
   }, [menu]);
 
-  const html = useMemo(() => sizeDiagramImages(DOMPurify.sanitize(marked.parse(n.body || '', { async: false, gfm: true, breaks: false }) as string)
-    // a diagram that has been inserted but not drawn yet is shown as a click-to-edit box
-    .replace(/<img[^>]*src="#diagram-([a-z0-9]+)"[^>]*>/g, '<div class="st-diagram-ph" data-diagram="$1">◈ 图表 · 点击这里开始绘制</div>')
-    .replace(/<img[^>]*src="#mindmap-([a-z0-9]+)"[^>]*>/g, '<div class="st-diagram-ph" data-kind="mindmap" data-diagram="$1">✺ 思维导图 · 点击这里开始绘制</div>')), [n.body]);
   const stats = useMemo(() => {
     const cjk = (n.body.match(/[぀-ヿ㐀-鿿]/g) || []).length;
     const words = n.body.replace(/[぀-ヿ㐀-鿿]/g, ' ').replace(/[#*_`>\-\[\]()!|]/g, ' ').split(/\s+/).filter(Boolean).length;
     return { count: cjk + words, minutes: Math.max(1, Math.round(cjk / 400 + words / 220)) };
   }, [n.body]);
 
-  /* ---------- text editing helpers (keep the textarea's undo-friendly selection) ---------- */
-  function replaceRange(start: number, end: number, text: string, selStart?: number, selEnd?: number) {
-    const el = ta.current!;
-    const body = el.value.slice(0, start) + text + el.value.slice(end);
-    edit({ body });
-    requestAnimationFrame(() => {
-      el.focus();
-      const a = selStart ?? start + text.length;
-      el.setSelectionRange(a, selEnd ?? a);
+  /* ---------- the editor: WYSIWYG on top of Markdown (the note is still stored as a Markdown string) ---------- */
+  const latest = useRef<{ edit: (p: Partial<Note>) => void; flush: () => Promise<boolean>; upload: (f: File[]) => void }>({ edit, flush, upload: () => {} });
+  latest.current.edit = edit; latest.current.flush = flush;
+  useEffect(() => {
+    const editor = new TipEditor({
+      element: host.current!,
+      extensions: editorExtensions('开始写作…  直接输入就是排好版的文章,粘贴或拖入图片会自动上传'),
+      content: note.body,
+      editorProps: {
+        attributes: { class: 'st-doc-content prose', spellcheck: 'false' },
+        handlePaste: (_v, e) => {
+          const files = [...(e.clipboardData?.files ?? [])];
+          if (!files.some((f) => f.type.startsWith('image/'))) return false;
+          e.preventDefault(); latest.current.upload(files); return true;
+        },
+        handleDrop: (_v, e) => {
+          const files = [...(e.dataTransfer?.files ?? [])];
+          if (!files.length) return false;
+          e.preventDefault(); latest.current.upload(files); return true;
+        },
+        handleKeyDown: (_v, e) => {
+          const mod = e.metaKey || e.ctrlKey;
+          if (mod && e.key === 's') { e.preventDefault(); latest.current.flush(); return true; }
+          if (mod && e.key === 'k') { e.preventDefault(); promptLink(); return true; }
+          return false;
+        },
+      },
+      onUpdate: ({ editor: e }) => latest.current.edit({ body: markdownOf(e) }),
+      onTransaction: () => setSaveTick((x) => x + 1),
     });
+    ed.current = editor;
+    // a placeholder box, or one of our diagram images, was clicked
+    const onClick = (e: MouseEvent) => {
+      const ph = (e.target as HTMLElement).closest?.('.st-diagram-ph:not(.uploading)') as HTMLElement | null;
+      if (ph) {
+        const id = ph.dataset.diagram!;
+        return setDiagram(ph.dataset.kind === 'mindmap' ? { kind: 'mindmap', data: '', oldUrl: `#mindmap-${id}` } : { kind: 'drawio', data: '', oldUrl: `#diagram-${id}` });
+      }
+      const img = e.target as HTMLImageElement;
+      if (img.tagName !== 'IMG') return;
+      const src = img.getAttribute('src') ?? '';
+      const kind = src.includes('.drawio.svg') ? 'drawio' : src.includes('.mindmap.svg') ? 'mindmap' : null;
+      if (kind) setSel({ src, kind });
+    };
+    editor.view.dom.addEventListener('click', onClick);
+    // the bottom border of a table row (away from the column borders) is a row-height handle
+    const dom = editor.view.dom;
+    const rowEdge = (e: MouseEvent) => {
+      const cell = (e.target as HTMLElement).closest?.('td,th') as HTMLElement | null;
+      if (!cell) return null;
+      const r = cell.getBoundingClientRect();
+      if (e.clientX - r.left <= 8 || r.right - e.clientX <= 8) return null; // that is a column border
+      const row = cell.closest('tr') as HTMLElement | null;
+      if (Math.abs(e.clientY - r.bottom) <= 4) return row;
+      // the border between two rows is painted on the lower cell: the pointer may be on the top edge of the next row
+      if (Math.abs(e.clientY - r.top) <= 4) return (row?.previousElementSibling as HTMLElement | null) ?? null;
+      return null;
+    };
+    const onMove = (e: MouseEvent) => { if (!dragging.current) wrap.current?.classList.toggle('row-resize', !!rowEdge(e)); };
+    const onDown = (e: MouseEvent) => { const tr = rowEdge(e); if (tr) { e.preventDefault(); e.stopPropagation(); startRowResize(e, tr); } };
+    dom.addEventListener('mousemove', onMove); dom.addEventListener('mousedown', onDown, true);
+    return () => { dom.removeEventListener('mousemove', onMove); dom.removeEventListener('mousedown', onDown, true); editor.view.dom.removeEventListener('click', onClick); editor.destroy(); ed.current = null; };
+  }, []);
+
+  const run = () => ed.current!.chain().focus();
+  const on = (name: string, attrs?: Record<string, unknown>) => !!ed.current?.isActive(name, attrs);
+  function promptLink() {
+    const e = ed.current!;
+    const url = window.prompt('链接地址(留空取消链接)', e.getAttributes('link').href ?? 'https://');
+    if (url === null) return;
+    if (url.trim() === '') e.chain().focus().extendMarkRange('link').unsetLink().run();
+    else e.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
   }
-  function wrap(before: string, after = before, placeholder = '') {
-    const el = ta.current!; const { selectionStart: s, selectionEnd: e, value } = el;
-    const sel = value.slice(s, e) || placeholder;
-    replaceRange(s, e, before + sel + after, s + before.length, s + before.length + sel.length);
-  }
-  /** add (or toggle off) a prefix on every selected line */
-  function linePrefix(prefix: string | ((i: number) => string)) {
-    const el = ta.current!; const { selectionStart: s, selectionEnd: e, value } = el;
-    const start = value.lastIndexOf('\n', s - 1) + 1;
-    const endNl = value.indexOf('\n', e); const end = endNl === -1 ? value.length : endNl;
-    const lines = value.slice(start, end).split('\n');
-    const first = typeof prefix === 'string' ? prefix : prefix(0);
-    const allHave = typeof prefix === 'string' && lines.every((l) => l.startsWith(prefix));
-    const out = lines.map((l, i) => {
-      const p = typeof prefix === 'string' ? prefix : prefix(i);
-      if (allHave) return l.slice(p.length);
-      return p + l.replace(/^(#{1,6} |> |[-*+] \[[ xX]\] |[-*+] |\d+\. )/, '');
-    }).join('\n');
-    replaceRange(start, end, out, start + (allHave ? 0 : first.length), start + out.length);
-  }
-  function insertBlock(text: string, cursorOffset?: number) {
-    const el = ta.current!; const { selectionStart: s, selectionEnd: e, value } = el;
-    const pre = s > 0 && value[s - 1] !== '\n' ? '\n\n' : s > 1 && value[s - 2] !== '\n' ? '\n' : '';
-    const post = value[e] && value[e] !== '\n' ? '\n\n' : '\n';
-    const block = pre + text + post;
-    const caret = s + pre.length + (cursorOffset ?? text.length);
-    replaceRange(s, e, block, caret, caret);
+  function link(label: string, href: string) {
+    run().insertContent({ type: 'text', text: label, marks: [{ type: 'link', attrs: { href } }] }).run();
     setMenu('');
   }
+  const align = (a: 'left' | 'center' | 'right') => (run() as any).setTextAlign(a).run();
 
-  /* ---------- Markdown keyboard behaviour ---------- */
-  function onKeyDown(e: KeyboardEvent) {
-    const el = ta.current!;
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key === 's') { e.preventDefault(); flush(); return; }
-    if (mod && e.key === 'b') { e.preventDefault(); wrap('**', '**', '加粗'); return; }
-    if (mod && e.key === 'i') { e.preventDefault(); wrap('*', '*', '斜体'); return; }
-    if (mod && e.key === 'k') { e.preventDefault(); wrap('[', '](https://)', '链接文字'); return; }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const { selectionStart: s, selectionEnd: end, value } = el;
-      if (s === end && !e.shiftKey) { replaceRange(s, s, '  '); return; }
-      const start = value.lastIndexOf('\n', s - 1) + 1;
-      const lines = value.slice(start, end).split('\n');
-      const out = lines.map((l) => (e.shiftKey ? l.replace(/^ {1,2}/, '') : '  ' + l)).join('\n');
-      replaceRange(start, end, out, start, start + out.length);
-      return;
-    }
-    if (e.key === 'Enter' && !e.shiftKey && !mod && !e.isComposing) {
-      // continue lists / quotes / task lists; an empty item ends the list
-      const { selectionStart: s, value } = el;
-      const lineStart = value.lastIndexOf('\n', s - 1) + 1;
-      const line = value.slice(lineStart, s);
-      const m = line.match(/^(\s*)([-*+] \[[ xX]\] |[-*+] |(\d+)\. |> )/);
-      if (!m) return;
-      e.preventDefault();
-      if (line.trim() === m[2].trim()) { replaceRange(lineStart, s, ''); return; }
-      let marker = m[2];
-      if (m[3]) marker = `${+m[3] + 1}. `;
-      if (/\[[xX]\]/.test(marker)) marker = marker.replace(/\[[xX]\]/, '[ ]');
-      replaceRange(s, el.selectionEnd, '\n' + m[1] + marker);
-    }
+  /* ---------- images: paste, drop or pick -> Supabase Storage -> an image in the document ---------- */
+  function replaceImageSrc(from: string, to: string) {
+    const e = ed.current; if (!e) return;
+    const { tr } = e.state; let hit = false;
+    e.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image' && node.attrs.src === from) { tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: to, v: (node.attrs.v ?? 0) + 1 }); hit = true; }
+    });
+    if (hit) e.view.dispatch(tr);
   }
-
-  /* ---------- images: paste, drop or pick -> Supabase Storage -> Markdown ---------- */
-  // Swap a placeholder for its final text without touching the user's caret (they may be typing elsewhere by now).
-  function swapText(from: string, to: string) {
-    const el = ta.current;
-    if (!el) return;
-    const i = el.value.indexOf(from);
-    if (i < 0) return;
-    const { selectionStart: s, selectionEnd: e } = el;
-    const d = to.length - from.length;
-    const shift = (x: number) => (x >= i + from.length ? x + d : x > i ? i + to.length : x);
-    edit({ body: el.value.slice(0, i) + to + el.value.slice(i + from.length) });
-    if (document.activeElement === el) requestAnimationFrame(() => el.setSelectionRange(shift(s), shift(e)));
+  function removeImage(src: string) {
+    const e = ed.current; if (!e) return;
+    const { tr } = e.state; const found: [number, number][] = [];
+    e.state.doc.descendants((node, pos) => { if (node.type.name === 'image' && node.attrs.src === src) found.push([pos, node.nodeSize]); });
+    found.reverse().forEach(([pos, size]) => tr.delete(pos, pos + size));
+    e.view.dispatch(tr);
   }
   async function uploadFile(f: File): Promise<string | null> {
     const ext = f.name.endsWith('.drawio.svg') ? 'drawio.svg' : f.name.endsWith('.mindmap.svg') ? 'mindmap.svg' : (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
@@ -275,42 +297,41 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
     setUploading(true);
-    // Drop placeholders at the paste point right away, so edits made while uploading can't shift where the images land.
-    const jobs = images.map((f) => ({ f, ph: `![上传中 ${Math.random().toString(36).slice(2, 8)}…]()` }));
-    insertBlock(jobs.map((j) => j.ph).join('\n\n'));
-    for (const { f, ph } of jobs) {
-      if (f.size > 8 * 1024 * 1024) { toast(`${f.name} 太大了(上限 8MB)`); swapText(ph, ''); continue; }
+    for (const f of images) {
+      if (f.size > 8 * 1024 * 1024) { toast(`${f.name} 太大了(上限 8MB)`); continue; }
+      // a placeholder goes in at the caret right away; the real URL replaces it when the upload is done
+      const ph = `#uploading-${Math.random().toString(36).slice(2, 8)}`;
+      run().insertContent({ type: 'paragraph', content: [{ type: 'image', attrs: { src: ph, alt: f.name.replace(/(\.drawio|\.mindmap)?\.[^.]+$/, '') } }] }).run();
       const url = await uploadFile(f);
-      swapText(ph, url ? `![${f.name.replace(/(\.drawio|\.mindmap)?\.[^.]+$/, '')}](${url})` : '');
+      if (url) replaceImageSrc(ph, url); else removeImage(ph);
     }
     setUploading(false);
   }
+  latest.current.upload = upload;
 
-  /* ---------- diagrams: draw.io (.drawio.svg) and mind maps (.mindmap.svg) are saved as SVG images that carry their
-     own source; click one in the preview to edit it again. A not-yet-drawn one is a `#diagram-xxx` / `#mindmap-xxx` placeholder. ---------- */
   /* selected diagram image: corner handles scale it (same shape), "裁剪" cuts it with the edge handles, 编辑 reopens the editor */
   const [sel, setSel] = useState<{ src: string; kind: 'drawio' | 'mindmap' } | null>(null);
   const [rect, setRect] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
   const dragging = useRef(false);
-  const findImg = (src: string) => [...(pv.current?.querySelectorAll('img') ?? [])].find((i) => i.getAttribute('src') === src) as HTMLImageElement | undefined;
+  const findImg = (src: string) => [...(ed.current?.view.dom.querySelectorAll('img') ?? [])].find((i) => i.getAttribute('src') === src) as HTMLImageElement | undefined;
   /** the visible box: the clipping wrapper of a cropped image, else the image itself */
   const boxOf = (img: HTMLImageElement) => (img.closest('.dg-crop') as HTMLElement | null) ?? img;
   function measure() {
-    const img = sel && findImg(sel.src), view = pv.current?.getBoundingClientRect();
+    const img = sel && findImg(sel.src), view = wrap.current?.getBoundingClientRect();
     if (!img || !view) return setRect(null);
     const r = boxOf(img).getBoundingClientRect();
     if (r.bottom < view.top || r.top > view.bottom) return setRect(null); // scrolled out of the preview
     setRect({ l: r.left, t: r.top, w: r.width, h: r.height });
   }
-  useLayoutEffect(() => { measure(); const id = requestAnimationFrame(measure); return () => cancelAnimationFrame(id); }, [sel, html, view]);
+  useLayoutEffect(() => { measure(); const id = requestAnimationFrame(measure); return () => cancelAnimationFrame(id); }, [sel, saveTick]);
   useEffect(() => {
     if (!sel) return;
     const on = () => { if (!dragging.current) measure(); };
     const down = (e: MouseEvent) => { const t = e.target as HTMLElement; if (!t.closest?.('.st-img-sel') && t.tagName !== 'IMG') setSel(null); };
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSel(null);
-    window.addEventListener('resize', on); pv.current?.addEventListener('scroll', on);
+    window.addEventListener('resize', on); wrap.current?.addEventListener('scroll', on);
     document.addEventListener('mousedown', down); document.addEventListener('keydown', esc);
-    return () => { window.removeEventListener('resize', on); pv.current?.removeEventListener('scroll', on); document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc); };
+    return () => { window.removeEventListener('resize', on); wrap.current?.removeEventListener('scroll', on); document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc); };
   }, [sel]);
   const [diagram, setDiagram] = useState<{ kind: 'drawio' | 'mindmap'; data: string; oldUrl?: string } | null>(null);
   async function saveDiagram(svg: Blob, kind: 'drawio' | 'mindmap', oldUrl?: string) {
@@ -320,25 +341,12 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     const url = await uploadFile(file);
     setUploading(false);
     const size = oldUrl.startsWith('#') ? '' : (oldUrl.match(/#w=\d+/)?.[0] ?? ''); // keep the chosen width (a crop would no longer fit the redrawn picture)
-    if (url) edit({ body: (ta.current?.value ?? n.body).split(oldUrl).join(url + size) });
+    if (url) replaceImageSrc(oldUrl, url + size);
   }
   function addDiagram(kind: 'drawio' | 'mindmap') {
     setMenu('');
-    if (view !== 'split') setView('split');
     const id = Math.random().toString(36).slice(2, 8);
-    setTimeout(() => ta.current && insertBlock(kind === 'drawio' ? `![图表](#diagram-${id})` : `![导图](#mindmap-${id})`), 50);
-  }
-  async function onPreviewClick(e: MouseEvent) {
-    const ph = (e.target as HTMLElement).closest?.('.st-diagram-ph') as HTMLElement | null;
-    if (ph) {
-      const id = ph.dataset.diagram!;
-      return setDiagram(ph.dataset.kind === 'mindmap' ? { kind: 'mindmap', data: '', oldUrl: `#mindmap-${id}` } : { kind: 'drawio', data: '', oldUrl: `#diagram-${id}` });
-    }
-    const img = e.target as HTMLImageElement;
-    if (img.tagName !== 'IMG') return;
-    const src = img.getAttribute('src') ?? '';
-    const kind = src.includes('.drawio.svg') ? 'drawio' : src.includes('.mindmap.svg') ? 'mindmap' : null;
-    if (kind) setSel({ src, kind });
+    run().insertContent({ type: 'paragraph', content: [{ type: 'image', attrs: { src: kind === 'drawio' ? `#diagram-${id}` : `#mindmap-${id}`, alt: kind === 'drawio' ? '图表' : '导图' } }] }).run();
   }
   async function editImage(m: { src: string; kind: 'drawio' | 'mindmap' }) {
     setSel(null);
@@ -356,7 +364,7 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   /** commit a new size/crop: it lives in the image URL, so it survives re-editing and renders on the blog */
   function setSize(src: string, next: string) {
     setSel((m) => m && { ...m, src: next });
-    edit({ body: (ta.current?.value ?? n.body).split(src).join(next) });
+    replaceImageSrc(src, next);
   }
   const columnWidth = (img: HTMLImageElement) => (boxOf(img).parentElement ?? img).getBoundingClientRect().width;
   /** corner handles: scale, keeping the shape. The image is centred, so both edges move. */
@@ -423,33 +431,10 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
       const pct = Math.max(5, Math.min(100, Math.round(((fullW * (1 - l - r)) / parentW) * 100)));
       const next = diagramSrc(src, pct, cut ? [t, r, b, l] : null, cut ? N : null);
       if (next !== src) setSize(src, next);
-      else if (pv.current) pv.current.innerHTML = html; // nothing changed: drop the temporary live styles
+      else replaceImageSrc(src, src); // nothing changed: rebuild the view to drop the temporary live styles
     };
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
-  const onPaste = (e: ClipboardEvent) => {
-    const files = [...(e.clipboardData?.files ?? [])];
-    if (files.some((f) => f.type.startsWith('image/'))) { e.preventDefault(); upload(files); }
-  };
-  const onDrop = (e: DragEvent) => {
-    const files = [...(e.dataTransfer?.files ?? [])];
-    if (files.length) { e.preventDefault(); upload(files); }
-  };
-
-  /* ---------- split view: keep the preview at the same relative scroll position ---------- */
-  const lastTyped = useRef(0);
-  function syncScroll() {
-    const a = ta.current, b = pv.current;
-    if (!a || !b || view !== 'split') return;
-    if (Date.now() - lastTyped.current < 400) return; // scroll caused by typing, not by the user dragging
-    const r = a.scrollTop / Math.max(1, a.scrollHeight - a.clientHeight);
-    b.scrollTop = r * (b.scrollHeight - b.clientHeight);
-  }
-
-  // The preview HTML is replaced on every keystroke; keep its scroll position instead of letting it clamp/jump.
-  const pvTop = useRef(0);
-  useLayoutEffect(() => { if (pv.current) pv.current.scrollTop = pvTop.current; }, [html]);
-
   /* ---------- publishing ---------- */
   async function publish() {
     const slug = n.slug || slugify(n.title);
@@ -469,8 +454,116 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   }
 
   const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-  const T = (props: { t: string; k?: string; onClick: () => void; children: any }) => (
-    <button type="button" title={props.k ? `${props.t}(${props.k})` : props.t} onMouseDown={(e) => e.preventDefault()} onClick={props.onClick}>{props.children}</button>
+  /* ---------- floating bars: table tools sit on the table, text tools on the selection ---------- */
+  const [float, setFloat] = useState<{ kind: 'text' | 'table'; left: number; top: number } | null>(null);
+  const [tbl, setTbl] = useState<{ l: number; t: number; w: number; h: number } | null>(null); // the table under the caret, for its right-edge grip
+  const tblPos = useRef<number | null>(null);
+  function placeFloat() {
+    const e = ed.current, box = wrap.current?.getBoundingClientRect();
+    if (!e || !box) { setTbl(null); return setFloat(null); }
+    const { selection } = e.state, { $from } = selection;
+    let tableDepth = -1;
+    for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === 'table') { tableDepth = d; break; }
+    if (tableDepth > 0) {
+      const el = e.view.nodeDOM($from.before(tableDepth)) as HTMLElement | null;
+      if (!el) { setTbl(null); return setFloat(null); }
+      const r = el.getBoundingClientRect(), tr = (el.querySelector('table') ?? el).getBoundingClientRect();
+      if (r.bottom < box.top || r.top > box.bottom) { setTbl(null); return setFloat(null); }
+      tblPos.current = $from.before(tableDepth);
+      setTbl({ l: tr.left, t: Math.max(tr.top, box.top), w: tr.width, h: Math.min(tr.bottom, box.bottom) - Math.max(tr.top, box.top) });
+      return setFloat({ kind: 'table', left: Math.max(box.left + 8, r.left), top: Math.max(box.top + 6, r.top - 46) });
+    }
+    setTbl(null);
+    if (selection.empty || (selection as any).node) return setFloat(null); // only a text selection gets the bar
+    const a = e.view.coordsAtPos(selection.from), b = e.view.coordsAtPos(selection.to);
+    const top = Math.min(a.top, b.top), bottom = Math.max(a.bottom, b.bottom);
+    if (bottom < box.top || top > box.bottom) return setFloat(null);
+    const mid = (Math.min(a.left, b.left) + Math.max(a.right, b.right)) / 2;
+    setFloat({ kind: 'text', left: Math.max(box.left + 8, mid - 150), top: top - 46 < box.top + 6 ? bottom + 8 : top - 46 });
+  }
+  /**
+   * Table size, the usual way: dragging a column border (including the table's right edge) is handled by the table
+   * extension; here, dragging the bottom border of a row sets that row's height.
+   */
+  function startRowResize(e: MouseEvent, tr: HTMLElement) {
+    const editor = ed.current; if (!editor) return;
+    const $p = editor.state.doc.resolve(editor.view.posAtDOM(tr, 0));
+    let rowPos = -1;
+    for (let d = $p.depth; d > 0; d--) if ($p.node(d).type.name === 'tableRow') { rowPos = $p.before(d); break; }
+    if (rowPos < 0) return;
+    const h0 = tr.getBoundingClientRect().height, y0 = e.clientY;
+    dragging.current = true; document.body.classList.add('st-resizing');
+    const move = (ev: MouseEvent) => {
+      const node = editor.state.doc.nodeAt(rowPos); if (!node) return;
+      const height = Math.round(Math.max(28, h0 + ev.clientY - y0));
+      if (node.attrs.height !== height) editor.view.dispatch(editor.state.tr.setNodeMarkup(rowPos, undefined, { ...node.attrs, height }));
+    };
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); dragging.current = false; document.body.classList.remove('st-resizing'); };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  }
+  /** the table's right edge: widens or narrows the last column (the other columns keep their width) */
+  function startTableEdge(e: MouseEvent) {
+    e.preventDefault(); e.stopPropagation();
+    const editor = ed.current, pos = tblPos.current;
+    if (!editor || pos == null) return;
+    const wrapper = editor.view.nodeDOM(pos) as HTMLElement | null, table = wrapper?.querySelector('table');
+    const first = table?.querySelector('tr');
+    if (!wrapper || !first) return;
+    const w0 = ([...first.children] as HTMLElement[]).map((c) => c.getBoundingClientRect().width), last = w0.length - 1;
+    const maxLast = (wrapper.parentElement?.getBoundingClientRect().width ?? 9999) - 2 - w0.slice(0, last).reduce((a, b) => a + b, 0);
+    const x0 = e.clientX;
+    dragging.current = true; document.body.classList.add('st-resizing');
+    const move = (ev: MouseEvent) => {
+      const widths = w0.map((w, i) => Math.round(i === last ? Math.max(60, Math.min(maxLast, w + ev.clientX - x0)) : w));
+      const node = editor.state.doc.nodeAt(pos); if (!node) return;
+      const { tr } = editor.state; let changed = false;
+      node.forEach((row, rowOff) => {
+        let cell = pos + 1 + rowOff + 1;
+        row.forEach((c, _o, i) => {
+          if (c.attrs.colspan === 1 && c.attrs.colwidth?.[0] !== widths[i]) { tr.setNodeMarkup(cell, undefined, { ...c.attrs, colwidth: [widths[i]] }); changed = true; }
+          cell += c.nodeSize;
+        });
+      });
+      if (changed) editor.view.dispatch(tr);
+    };
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); dragging.current = false; document.body.classList.remove('st-resizing'); };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  }
+  /** where the table sits (left / centre / right), as opposed to the alignment of the text in its cells; a full-width table is narrowed first so the change is visible */
+  function currentTableAlign(): 'left' | 'center' | 'right' {
+    try { return ed.current?.state.doc.nodeAt(tblPos.current ?? 0)?.attrs.align ?? 'left'; } catch { return 'left'; }
+  }
+  function alignTable(kind: 'left' | 'center' | 'right') {
+    const editor = ed.current, pos = tblPos.current;
+    if (!editor || pos == null) return;
+    const node = editor.state.doc.nodeAt(pos); if (!node) return;
+    const { tr } = editor.state;
+    tr.setNodeMarkup(pos, undefined, { ...node.attrs, align: kind === 'left' ? null : kind });
+    let sized = false;
+    node.descendants((c) => { if (c.attrs?.colwidth) sized = true; });
+    const wrapper = editor.view.nodeDOM(pos) as HTMLElement | null, first = wrapper?.querySelector('tr');
+    if (kind !== 'left' && !sized && first) {
+      const widths = ([...first.children] as HTMLElement[]).map((c) => Math.max(60, Math.round(c.getBoundingClientRect().width * 0.8)));
+      node.forEach((row, rowOff) => {
+        let cell = pos + 1 + rowOff + 1;
+        row.forEach((c, _o, i) => {
+          if (c.attrs.colspan === 1) tr.setNodeMarkup(cell, undefined, { ...c.attrs, colwidth: [widths[i]] });
+          cell += c.nodeSize;
+        });
+      });
+    }
+    editor.view.dispatch(tr);
+  }
+  const placeRef = useRef(placeFloat); placeRef.current = placeFloat;
+  useLayoutEffect(() => { placeFloat(); }, [saveTick]);
+  useEffect(() => {
+    const go = () => placeRef.current();
+    wrap.current?.addEventListener('scroll', go); window.addEventListener('resize', go);
+    return () => { wrap.current?.removeEventListener('scroll', go); window.removeEventListener('resize', go); };
+  }, []);
+
+  const T = (props: { t: string; k?: string; on?: boolean; onClick: () => void; children: any }) => (
+    <button type="button" class={props.on ? 'on' : ''} title={props.k ? `${props.t}(${props.k})` : props.t} onMouseDown={(e) => e.preventDefault()} onClick={props.onClick}>{props.children}</button>
   );
 
   return (
@@ -487,24 +580,17 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           <button class={`st-icon ${focus ? 'on' : ''}`} title={focus ? '退出专注(Esc)' : '专注写作'} onClick={() => setFocus(!focus)}>{focus ? '⤡' : '⤢'}</button>
         </div>
 
-        <div class="st-toolbar" role="toolbar" aria-label="Markdown">
+        <div class="st-toolbar" role="toolbar" aria-label="格式">
           <div class="st-tool-group">
-            <T t="一级标题" onClick={() => linePrefix('# ')}>H1</T>
-            <T t="二级标题" onClick={() => linePrefix('## ')}>H2</T>
-            <T t="三级标题" onClick={() => linePrefix('### ')}>H3</T>
+            <T t="一级标题" on={on('heading', { level: 1 })} onClick={() => run().toggleHeading({ level: 1 }).run()}>H1</T>
+            <T t="二级标题" on={on('heading', { level: 2 })} onClick={() => run().toggleHeading({ level: 2 }).run()}>H2</T>
+            <T t="三级标题" on={on('heading', { level: 3 })} onClick={() => run().toggleHeading({ level: 3 }).run()}>H3</T>
           </div>
           <div class="st-tool-group">
-            <T t="加粗" k="⌘B" onClick={() => wrap('**', '**', '加粗')}><b>B</b></T>
-            <T t="斜体" k="⌘I" onClick={() => wrap('*', '*', '斜体')}><i>I</i></T>
-            <T t="删除线" onClick={() => wrap('~~', '~~', '删除线')}><s>S</s></T>
-            <T t="行内代码" onClick={() => wrap('`', '`', 'code')}>{'`·`'}</T>
-            <T t="链接" k="⌘K" onClick={() => wrap('[', '](https://)', '链接文字')}>🔗</T>
-          </div>
-          <div class="st-tool-group">
-            <T t="无序列表" onClick={() => linePrefix('- ')}>•</T>
-            <T t="有序列表" onClick={() => linePrefix((i) => `${i + 1}. `)}>1.</T>
-            <T t="任务列表" onClick={() => linePrefix('- [ ] ')}>☑</T>
-            <T t="引用" onClick={() => linePrefix('> ')}>❝</T>
+            <T t="无序列表" on={on('bulletList')} onClick={() => run().toggleBulletList().run()}>•</T>
+            <T t="有序列表" on={on('orderedList')} onClick={() => run().toggleOrderedList().run()}>1.</T>
+            <T t="任务列表" on={on('taskList')} onClick={() => run().toggleTaskList().run()}>☑</T>
+            <T t="引用" on={on('blockquote')} onClick={() => run().toggleBlockquote().run()}>❝</T>
           </div>
           <div class="st-tool-group">
             <T t="插入图片(也可以直接粘贴或拖进来)" onClick={() => fileInput.current?.click()}>{uploading ? '上传中…' : '🖼'}</T>
@@ -515,19 +601,19 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
                 <div class="st-menu" role="menu">
                   <button onClick={() => addDiagram('mindmap')}>✺ 思维导图</button>
                   <button onClick={() => addDiagram('drawio')}>◈ 流程图 / 架构图…</button>
-                  <button onClick={() => insertBlock('| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |', 2)}>▦ 表格</button>
+                  <button onClick={() => { run().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); setMenu(''); }}>▦ 表格</button>
                   <button onClick={() => setMenu('code')}>{'{ }'} 代码块 ›</button>
-                  <button onClick={() => insertBlock('---')}>— 分割线</button>
-                  <button onClick={() => insertBlock('- [ ] ', 6)}>☑ 任务列表</button>
-                  <button onClick={() => insertBlock('> **提示**:')}>💡 提示框</button>
-                  <button onClick={() => { const t = '<details>\n<summary>点击展开</summary>\n\n内容\n\n</details>'; insertBlock(t, t.indexOf('内容')); }}>▸ 折叠内容</button>
+                  <button onClick={() => { run().setHorizontalRule().run(); setMenu(''); }}>— 分割线</button>
+                  <button onClick={() => { run().toggleTaskList().run(); setMenu(''); }}>☑ 任务列表</button>
+                  <button onClick={() => { run().insertContent({ type: 'blockquote', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: '提示' }, { type: 'text', text: ':' }] }] }).run(); setMenu(''); }}>💡 提示框</button>
+                  <button onClick={() => { (run() as any).setDetails().run(); setMenu(''); }}>▸ 折叠内容</button>
                   <button onClick={() => setMenu('learning')}>⌥ 学习清单条目 ›</button>
                   <button onClick={() => setMenu('project')}>◇ 项目 ›</button>
                 </div>
               )}
               {menu === 'code' && (
                 <div class="st-menu grid" role="menu">
-                  {CODE_LANGS.map((l) => <button onClick={() => insertBlock('```' + l + '\n\n```', l.length + 4)}>{l}</button>)}
+                  {CODE_LANGS.map((l) => <button onClick={() => { run().toggleCodeBlock({ language: l }).run(); setMenu(''); }}>{l}</button>)}
                 </div>
               )}
               {menu === 'learning' && (
@@ -536,9 +622,8 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
                   {learning.map((l) => (
                     <button onClick={() => {
                       // link the item in the text, and also record the relation
-                      wrap(`[`, `](${l.url ?? `/learning/${l.id}/`})`, l.title);
+                      link(l.title, l.url ?? `/learning/${l.id}/`);
                       if (!n.learning_ids.includes(l.id)) edit({ learning_ids: [...n.learning_ids, l.id] });
-                      setMenu('');
                     }}>{l.title}</button>
                   ))}
                 </div>
@@ -547,37 +632,21 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
                 <div class="st-menu" role="menu">
                   {projects.map((p) => (
                     <button onClick={() => {
-                      wrap(`[`, `](/projects/${p.slug}/)`, p.title);
+                      link(p.title, `/projects/${p.slug}/`);
                       if (!n.projects.includes(p.slug)) edit({ projects: [...n.projects, p.slug] });
-                      setMenu('');
                     }}>{p.title}</button>
                   ))}
                 </div>
               )}
             </div>
           </div>
-          <span class="st-spacer" />
-          <div class="st-seg" role="group" aria-label="视图">
-            {(['write', 'split', 'preview'] as const).map((v) => <button class={view === v ? 'on' : ''} onClick={() => setView(v)}>{{ write: '编辑', split: '分栏', preview: '预览' }[v]}</button>)}
-          </div>
         </div>
 
-        <div class={`st-panes ${view}`}>
-          {view !== 'preview' && (
-            <textarea ref={ta} class="st-body" spellcheck={false}
-              placeholder={'用 Markdown 写作…\n\n# 标题\n**加粗**  *斜体*  `代码`\n- 列表(回车自动续写)\n> 引用\n\n可以直接粘贴或拖入图片。'}
-              value={n.body}
-              onInput={(e) => { lastTyped.current = Date.now(); edit({ body: (e.target as HTMLTextAreaElement).value }); }}
-              onKeyDown={onKeyDown} onPaste={onPaste} onDrop={onDrop} onScroll={syncScroll} />
-          )}
-          {view !== 'write' && (
-            <article ref={pv} class="st-preview prose" onClick={onPreviewClick} onScroll={(e) => { pvTop.current = (e.currentTarget as HTMLElement).scrollTop; }} dangerouslySetInnerHTML={{ __html: html || '<p class="st-muted">预览会显示在这里</p>' }} />
-          )}
-        </div>
+        <div class="st-doc" ref={wrap}><div ref={host} /></div>
 
         <div class="st-status">
           <span>{stats.count} 字 · 约 {stats.minutes} 分钟</span>
-          <span class="st-muted">Markdown · 回车续写列表 · Tab 缩进 · ⌘S 保存{focus ? ' · Esc 退出专注' : ''}</span>
+          <span class="st-muted">直接排版 · 存为 Markdown · 表格拖边框调列宽 · ⌘S 保存{focus ? ' · Esc 退出专注' : ''}</span>
         </div>
       </div>
 
@@ -627,6 +696,35 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
             <button class="st-link danger" onClick={remove}>删除这篇笔记</button>
           </div>
         </aside>
+      )}
+      {tbl && <div class="st-tbl-edge" title="拖动调整表格宽度" style={{ left: tbl.l + tbl.w - 4, top: tbl.t, height: tbl.h }} onMouseDown={startTableEdge} />}
+      {float && (
+        <div class="st-float" style={{ left: float.left, top: float.top }} onMouseDown={(e) => e.preventDefault()}>
+          {float.kind === 'table' && (<>
+            <T t="在上方插入一行" onClick={() => run().addRowBefore().run()}>↑行</T>
+            <T t="在下方插入一行" onClick={() => run().addRowAfter().run()}>↓行</T>
+            <T t="在左侧插入一列" onClick={() => run().addColumnBefore().run()}>←列</T>
+            <T t="在右侧插入一列" onClick={() => run().addColumnAfter().run()}>→列</T>
+            <T t="删除当前行" onClick={() => run().deleteRow().run()}>−行</T>
+            <T t="删除当前列" onClick={() => run().deleteColumn().run()}>−列</T>
+            <T t="合并或拆分选中的单元格" onClick={() => run().mergeOrSplit().run()}>合并</T>
+            <T t="删除整个表格" onClick={() => run().deleteTable().run()}>删表格</T>
+            <span class="sep" />
+            {(['left', 'center', 'right'] as const).map((k) => (
+              <T t={{ left: '表格靠左', center: '表格居中', right: '表格靠右' }[k]} on={currentTableAlign() === k} onClick={() => alignTable(k)}><TableAlignIcon k={k} /></T>
+            ))}
+            <span class="sep" />
+          </>)}
+          <T t="加粗" k="⌘B" on={on('bold')} onClick={() => run().toggleBold().run()}><b>B</b></T>
+          <T t="斜体" k="⌘I" on={on('italic')} onClick={() => run().toggleItalic().run()}><i>I</i></T>
+          <T t="删除线" on={on('strike')} onClick={() => run().toggleStrike().run()}><s>S</s></T>
+          <T t="行内代码" on={on('code')} onClick={() => run().toggleCode().run()}>{'`·`'}</T>
+          <T t="链接" k="⌘K" on={on('link')} onClick={promptLink}>🔗</T>
+          <span class="sep" />
+          <T t={float.kind === 'table' ? '文字左对齐(当前列)' : '左对齐'} onClick={() => align('left')}><AlignIcon k="left" /></T>
+          <T t={float.kind === 'table' ? '文字居中(当前列)' : '居中'} onClick={() => align('center')}><AlignIcon k="center" /></T>
+          <T t={float.kind === 'table' ? '文字右对齐(当前列)' : '右对齐'} onClick={() => align('right')}><AlignIcon k="right" /></T>
+        </div>
       )}
       {sel && rect && (
         <div class="st-img-sel" style={{ left: rect.l, top: rect.t, width: rect.w, height: rect.h }}>
