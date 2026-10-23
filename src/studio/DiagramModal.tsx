@@ -25,7 +25,10 @@ export default function DiagramModal({ xml, onSave, onClose }: {
       try { msg = JSON.parse(e.data); } catch { return; }
       if (msg.event === 'init') send({ action: 'load', xml, autosave: 0 });
       else if (msg.event === 'save') send({ action: 'export', format: 'xmlsvg', xml: msg.xml, spin: '正在导出…' });
-      else if (msg.event === 'export') { onSave(await (await fetch(msg.data)).blob()); onClose(); }
+      else if (msg.event === 'export') {
+        const svg = await (await fetch(msg.data)).text();
+        onSave(new Blob([svg], { type: 'image/svg+xml' })); onClose();
+      }
       else if (msg.event === 'exit') onClose();
     }
     window.addEventListener('message', onMessage);

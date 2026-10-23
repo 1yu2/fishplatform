@@ -228,11 +228,16 @@ html.st-focus .st-panes{height:calc(100vh - 150px)}
 .st-mm-actions{align-items:center}
 @media (max-width:900px){ .st-mm-hint{display:none} }
 .st-img-sel{position:fixed; z-index:120; border:2px solid var(--accent); border-radius:6px; pointer-events:none}
-.st-img-sel .h{position:absolute; bottom:-8px; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--accent); pointer-events:auto; cursor:ew-resize}
-.st-img-sel .h.l{left:-8px} .st-img-sel .h.r{right:-8px}
+/* no visible dots: the whole edge / corner is a grab zone, and the cursor shows the direction */
+.st-img-sel .h{position:absolute; pointer-events:auto; background:transparent}
+.st-img-sel .h.n{left:0; right:0; top:-6px; height:12px; cursor:ns-resize}
+.st-img-sel .h.s{left:0; right:0; bottom:-6px; height:12px; cursor:ns-resize}
+.st-img-sel .h.w{top:0; bottom:0; left:-6px; width:12px; cursor:ew-resize}
+.st-img-sel .h.e{top:0; bottom:0; right:-6px; width:12px; cursor:ew-resize}
+.st-img-sel .h.nw, .st-img-sel .h.ne, .st-img-sel .h.sw, .st-img-sel .h.se{width:18px; height:18px; z-index:1}
+.st-img-sel .h.nw{left:-9px; top:-9px; cursor:nwse-resize} .st-img-sel .h.se{right:-9px; bottom:-9px; cursor:nwse-resize}
+.st-img-sel .h.ne{right:-9px; top:-9px; cursor:nesw-resize} .st-img-sel .h.sw{left:-9px; bottom:-9px; cursor:nesw-resize}
 .st-img-sel .bar{position:absolute; top:-40px; right:0; display:flex; gap:6px; align-items:center; pointer-events:auto; background:var(--bg-2); border:1px solid var(--line-2); border-radius:999px; padding:4px 6px 4px 12px; box-shadow:0 6px 20px rgba(43,37,69,.18); font-size:.78rem; white-space:nowrap}
 .st-img-sel .bar .st-btn{padding:4px 12px; font-size:.78rem}
-body.st-resizing{user-select:none; cursor:ew-resize}
-.st-mm-color{display:inline-flex; align-items:center; gap:4px; font-size:.8rem; color:var(--fg-2, inherit); cursor:pointer}
-.st-mm-color input{width:26px; height:26px; padding:0; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px var(--line-2); background:none; cursor:pointer}
-.st-mm-color input::-webkit-color-swatch-wrapper{padding:0} .st-mm-color input::-webkit-color-swatch{border:0; border-radius:50%}
+body.st-resizing{user-select:none}
+.st-img-sel .bar{padding:4px}

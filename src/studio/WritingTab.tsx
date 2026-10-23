@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { studioClient } from '../lib/supabase';
 import type { Learning, Note, Todo } from '../lib/studio-types';
-import { diagramWidth, sizeDiagramImages } from '../lib/diagram';
+import { diagramSrc, parseDiagramSize, sizeDiagramImages } from '../lib/diagram';
 import DiagramModal from './DiagramModal';
 import MindMapModal from './MindMapModal';
 import { TagInput, errText, slugify, useToast, type ProjectRef } from './shared';
@@ -288,16 +288,18 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
 
   /* ---------- diagrams: draw.io (.drawio.svg) and mind maps (.mindmap.svg) are saved as SVG images that carry their
      own source; click one in the preview to edit it again. A not-yet-drawn one is a `#diagram-xxx` / `#mindmap-xxx` placeholder. ---------- */
-  /* selected diagram image: a frame with two drag handles (resize with the mouse) and an edit button */
+  /* selected diagram image: corner handles scale it (same shape), "裁剪" cuts it with the edge handles, 编辑 reopens the editor */
   const [sel, setSel] = useState<{ src: string; kind: 'drawio' | 'mindmap' } | null>(null);
   const [rect, setRect] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
   const dragging = useRef(false);
   const findImg = (src: string) => [...(pv.current?.querySelectorAll('img') ?? [])].find((i) => i.getAttribute('src') === src) as HTMLImageElement | undefined;
+  /** the visible box: the clipping wrapper of a cropped image, else the image itself */
+  const boxOf = (img: HTMLImageElement) => (img.closest('.dg-crop') as HTMLElement | null) ?? img;
   function measure() {
-    const img = sel && findImg(sel.src), box = pv.current?.getBoundingClientRect();
-    if (!img || !box) return setRect(null);
-    const r = img.getBoundingClientRect();
-    if (r.bottom < box.top || r.top > box.bottom) return setRect(null); // scrolled out of the preview
+    const img = sel && findImg(sel.src), view = pv.current?.getBoundingClientRect();
+    if (!img || !view) return setRect(null);
+    const r = boxOf(img).getBoundingClientRect();
+    if (r.bottom < view.top || r.top > view.bottom) return setRect(null); // scrolled out of the preview
     setRect({ l: r.left, t: r.top, w: r.width, h: r.height });
   }
   useLayoutEffect(() => { measure(); const id = requestAnimationFrame(measure); return () => cancelAnimationFrame(id); }, [sel, html, view]);
@@ -317,7 +319,7 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     setUploading(true);
     const url = await uploadFile(file);
     setUploading(false);
-    const size = oldUrl.startsWith('#') ? '' : (oldUrl.match(/#w=\d+$/)?.[0] ?? ''); // keep the chosen size
+    const size = oldUrl.startsWith('#') ? '' : (oldUrl.match(/#w=\d+/)?.[0] ?? ''); // keep the chosen width (a crop would no longer fit the redrawn picture)
     if (url) edit({ body: (ta.current?.value ?? n.body).split(oldUrl).join(url + size) });
   }
   function addDiagram(kind: 'drawio' | 'mindmap') {
@@ -351,28 +353,77 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
       setDiagram({ kind: 'drawio', data, oldUrl: m.src });
     } catch { toast('读取图表失败'); }
   }
-  /** the width lives in the image URL (`…svg#w=63`, % of the column) so it survives re-editing; null = original size */
-  function resizeImage(src: string, pct: number | null) {
-    const next = pct ? `${src.split('#')[0]}#w=${pct}` : src.split('#')[0];
+  /** commit a new size/crop: it lives in the image URL, so it survives re-editing and renders on the blog */
+  function setSize(src: string, next: string) {
     setSel((m) => m && { ...m, src: next });
     edit({ body: (ta.current?.value ?? n.body).split(src).join(next) });
   }
-  function startResize(e: MouseEvent, side: 1 | -1) {
+  const columnWidth = (img: HTMLImageElement) => (boxOf(img).parentElement ?? img).getBoundingClientRect().width;
+  /** corner handles: scale, keeping the shape. The image is centred, so both edges move. */
+  function startResize(e: MouseEvent, sx: -1 | 0 | 1, sy: -1 | 0 | 1) {
     e.preventDefault(); e.stopPropagation();
     const img = sel && findImg(sel.src);
-    if (!sel || !img?.parentElement) return;
-    const src = sel.src, parentW = img.parentElement.getBoundingClientRect().width;
-    const startW = img.getBoundingClientRect().width, x0 = e.clientX;
+    if (!sel || !img) return;
+    const box = boxOf(img), src = sel.src, parentW = columnWidth(img), r0 = box.getBoundingClientRect(), startW = r0.width, startH = r0.height, x0 = e.clientX, y0 = e.clientY;
     let w = startW;
     dragging.current = true; document.body.classList.add('st-resizing');
     const move = (ev: MouseEvent) => {
-      w = Math.max(60, Math.min(parentW, startW + 2 * side * (ev.clientX - x0))); // centred, so both edges move
-      img.style.width = `${w}px`; measure();
+      // top / bottom edges: the height decides; otherwise the horizontal drag does. The shape is always kept.
+      const target = sx === 0 ? (startW * (startH + sy * (ev.clientY - y0))) / startH : startW + 2 * sx * (ev.clientX - x0);
+      w = Math.max(60, Math.min(parentW, target)); box.style.width = `${w}px`; measure();
     };
     const up = () => {
       window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up);
       dragging.current = false; document.body.classList.remove('st-resizing');
-      resizeImage(src, Math.max(5, Math.min(100, Math.round((w / parentW) * 100))));
+      const old = parseDiagramSize(src);
+      setSize(src, diagramSrc(src, Math.max(5, Math.min(100, Math.round((w / parentW) * 100))), old?.c, old?.n));
+    };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  }
+  /**
+   * Edge handles crop: the edge follows the mouse and the picture keeps its scale, so only the visible part changes.
+   * While dragging, the box is nudged (margin / translate) so the dragged edge stays under the cursor; the real
+   * layout (centred, flowing with the text) is applied when the mouse is released.
+   */
+  function startEdgeCrop(e: MouseEvent, hx: -1 | 0 | 1, hy: -1 | 0 | 1) {
+    e.preventDefault(); e.stopPropagation();
+    const img = sel && findImg(sel.src);
+    if (!sel || !img) return;
+    const src = sel.src, old = parseDiagramSize(src), c0 = old?.c ?? [0, 0, 0, 0];
+    const N = old?.n ?? img.naturalWidth / (img.naturalHeight || 1), parentW = columnWidth(img);
+    const fullW = boxOf(img).getBoundingClientRect().width / (1 - c0[1] - c0[3]), fullH = fullW / N;
+    let box = boxOf(img);
+    if (!box.classList.contains('dg-crop')) { // wrap an uncropped picture so it can be clipped live
+      const w = document.createElement('span'); w.className = 'dg-crop';
+      img.parentElement!.insertBefore(w, img); w.appendChild(img); box = w;
+    }
+    let [t, r, b, l] = c0;
+    const x0 = e.clientX, y0 = e.clientY, MIN = 0.08, clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
+    dragging.current = true; document.body.classList.add('st-resizing');
+    const paint = () => {
+      const vw = 1 - l - r, vh = 1 - t - b;
+      box.style.width = `${fullW * vw}px`; box.style.aspectRatio = String((vw / vh) * N);
+      box.style.marginTop = `calc(1.4em + ${t * fullH}px)`; box.style.transform = `translateX(${((l - r) * fullW) / 2}px)`;
+      Object.assign(img.style, { width: `${100 / vw}%`, left: `${(-l / vw) * 100}%`, top: `${(-t / vh) * 100}%` });
+      measure();
+    };
+    paint(); // lay the (possibly just wrapped) box out in its current state before the first move
+    const move = (ev: MouseEvent) => {
+      const dx = (ev.clientX - x0) / fullW, dy = (ev.clientY - y0) / fullH;
+      if (hx === -1) l = clamp(c0[3] + dx, 1 - r - MIN);
+      if (hx === 1) r = clamp(c0[1] - dx, 1 - l - MIN);
+      if (hy === -1) t = clamp(c0[0] + dy, 1 - b - MIN);
+      if (hy === 1) b = clamp(c0[2] - dy, 1 - t - MIN);
+      paint();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up);
+      dragging.current = false; document.body.classList.remove('st-resizing');
+      const cut = t + r + b + l > 0.002;
+      const pct = Math.max(5, Math.min(100, Math.round(((fullW * (1 - l - r)) / parentW) * 100)));
+      const next = diagramSrc(src, pct, cut ? [t, r, b, l] : null, cut ? N : null);
+      if (next !== src) setSize(src, next);
+      else if (pv.current) pv.current.innerHTML = html; // nothing changed: drop the temporary live styles
     };
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
@@ -580,12 +631,11 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
       {sel && rect && (
         <div class="st-img-sel" style={{ left: rect.l, top: rect.t, width: rect.w, height: rect.h }}>
           <div class="bar" style={rect.t < 52 ? { top: 8, right: 8 } : undefined}>
-            <span class="st-muted">拖动两侧圆点调整大小</span>
-            {diagramWidth(sel.src) && <button class="st-btn" onClick={() => resizeImage(sel.src, null)}>还原</button>}
             <button class="st-btn primary" onClick={() => editImage(sel)}>编辑</button>
           </div>
-          <div class="h l" onMouseDown={(e) => startResize(e, -1)} />
-          <div class="h r" onMouseDown={(e) => startResize(e, 1)} />
+          {/* corners scale (same shape); edges crop that side */}
+          {([['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]] as const).map(([c, sx, sy]) => <div class={`h ${c}`} onMouseDown={(e) => startResize(e, sx, sy)} />)}
+          {([['n', 0, -1], ['w', -1, 0], ['e', 1, 0], ['s', 0, 1]] as const).map(([c, hx, hy]) => <div class={`h ${c}`} onMouseDown={(e) => startEdgeCrop(e, hx, hy)} />)}
         </div>
       )}
       {diagram?.kind === 'drawio' && <DiagramModal xml={diagram.data} onSave={(svg) => saveDiagram(svg, 'drawio', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
