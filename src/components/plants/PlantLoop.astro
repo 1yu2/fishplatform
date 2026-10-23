@@ -39,14 +39,19 @@
     else {
       const VS = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.0,1.0); }';
       // colour = left half, alpha = right half; feather the sides so compression bleed at the seam never shows
+      // colour = left half, alpha = right half. The source is small, so sharpen: an unsharp mask on the
+      // colour and a steeper alpha curve for crisp edges. Sides are feathered so seam bleed never shows.
       const FS = [
-        'precision mediump float; varying vec2 uv; uniform sampler2D t;',
+        'precision mediump float; varying vec2 uv; uniform sampler2D t; uniform vec2 px;',
+        'vec3 colAt(vec2 p){ return texture2D(t, vec2(clamp(p.x, 0.0, 0.5 - px.x), p.y)).rgb; }',
         'void main(){',
         '  vec2 c = vec2(uv.x*0.5, uv.y);',
-        '  vec3 col = texture2D(t, c).rgb;',
+        '  vec3 col = colAt(c);',
+        '  vec3 blur = (colAt(c + vec2(px.x, 0.0)) + colAt(c - vec2(px.x, 0.0)) + colAt(c + vec2(0.0, px.y)) + colAt(c - vec2(0.0, px.y))) * 0.25;',
+        '  col = clamp(col + (col - blur) * 0.9, 0.0, 1.0);',
         '  float a = texture2D(t, vec2(0.5 + uv.x*0.5, uv.y)).r;',
+        '  a = smoothstep(0.22, 0.78, a);',
         '  a *= smoothstep(0.0, 0.05, uv.x) * (1.0 - smoothstep(0.95, 1.0, uv.x));',
-        '  a = smoothstep(0.03, 1.0, a);',
         '  gl_FragColor = vec4(col*a, a);',
         '}',
       ].join('\n');
@@ -80,6 +85,9 @@
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
         // playback can be refused (background tab, iOS low-power mode): show the still and retry later
+        video.playbackRate = 0.6;   // slower, calmer sway
+        video.addEventListener('loadedmetadata', () => { video.playbackRate = 0.6; gl.uniform2f(gl.getUniformLocation(prog, 'px'), 1 / video.videoWidth, 1 / video.videoHeight); });
+        gl.uniform2f(gl.getUniformLocation(prog, 'px'), 1 / 616, 1 / 480);
         const play = () => video.play().then(() => root.classList.remove('still'), still);
         play();
         document.addEventListener('visibilitychange', () => { if (!document.hidden && video.paused) play(); });
