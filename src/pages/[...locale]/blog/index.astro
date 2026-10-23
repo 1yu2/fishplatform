@@ -2,6 +2,7 @@
 import '../../../styles/site.css';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import PlantLoop from '../../../components/plants/PlantLoop.astro';
 import NowStrip from '../../../components/now/NowStrip.astro';
 import { SITE } from '../../../site';
 import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
@@ -105,6 +106,7 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
       <a href={localePath(lang, '/')}>{t('about.back')}</a>
     </footer>
   </main>
+  <PlantLoop />
 </Base>
 
 <script is:inline>

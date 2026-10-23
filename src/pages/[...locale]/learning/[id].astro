@@ -2,6 +2,7 @@
 import '../../../styles/site.css';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import PlantLoop from '../../../components/plants/PlantLoop.astro';
 import { SITE } from '../../../site';
 import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate } from '../../../lib/posts';
@@ -87,6 +88,7 @@ const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, `/learn
       <a href={localePath(lang, '/learning/')}>{t('learning.back')}</a>
     </footer>
   </main>
+  <PlantLoop />
 </Base>
 
 <style>

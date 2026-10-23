@@ -2,6 +2,7 @@
 import '../../../styles/site.css';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import PlantLoop from '../../../components/plants/PlantLoop.astro';
 import { SITE } from '../../../site';
 import { langFromParam, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { cachePublic, publicLearning } from '../../../lib/public-data';
@@ -63,6 +64,7 @@ const excerpt = (s: string) => (s.length > 140 ? `${s.slice(0, 140).trimEnd()}â€
       <a href={localePath(lang, '/')}>{t('about.back')}</a>
     </footer>
   </main>
+  <PlantLoop />
 </Base>
 
 <style>

@@ -1,0 +1,92 @@
+---
+// Decorative plant loop for the blog and learning pages: lilac plumes and violet ribbons growing up
+// from the lower-left corner (the homepage sphere and About peony live top-right).
+// assets/plants.mp4 is pre-processed from ref3.mov (see CLAUDE.md): keyed and recoloured offline,
+// colour on the left half and alpha on the right half, with a seamless loop baked in, so the page
+// only has to combine the two halves in a tiny WebGL shader.
+---
+<div class="plant-loop" aria-hidden="true">
+  <canvas class="plant-gl"></canvas>
+  <img class="plant-still" src="/assets/plants-still.png" alt="" width="354" height="552" loading="lazy" decoding="async">
+  <video class="plant-src" src="/assets/plants.mp4" muted loop playsinline preload="auto"></video>
+</div>
+
+<style is:global>
+  .plant-loop{
+    position:fixed; left:max(0px, calc((100vw - 1320px) / 2 - 40px)); bottom:0; z-index:1; pointer-events:none;
+    width:clamp(150px, 17vw, 250px); aspect-ratio:230/360;
+    opacity:.62;                       /* sits behind the content, so text stays readable over it */
+    transition:opacity .6s ease;
+  }
+  .plant-loop canvas, .plant-loop img{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .plant-loop img{opacity:0}
+  .plant-loop.still img{opacity:1}
+  .plant-loop.still canvas{display:none}
+  .plant-src{position:absolute; width:2px; height:2px; opacity:.01; left:0; top:0}
+  @media(max-width:760px){ .plant-loop{display:none} }   /* no free corner on phones */
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('.plant-loop');
+  if (root) {
+    const video = root.querySelector('video')!;
+    const cv = root.querySelector('canvas')!;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const gl = !reduce && !matchMedia('(max-width: 760px)').matches ? cv.getContext('webgl', { premultipliedAlpha: true, alpha: true }) : null;
+    const still = () => { root.classList.add('still'); video.pause(); };
+
+    if (!gl) still();
+    else {
+      const VS = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.0,1.0); }';
+      // colour = left half, alpha = right half; feather the sides so compression bleed at the seam never shows
+      const FS = [
+        'precision mediump float; varying vec2 uv; uniform sampler2D t;',
+        'void main(){',
+        '  vec2 c = vec2(uv.x*0.5, uv.y);',
+        '  vec3 col = texture2D(t, c).rgb;',
+        '  float a = texture2D(t, vec2(0.5 + uv.x*0.5, uv.y)).r;',
+        '  a *= smoothstep(0.0, 0.05, uv.x) * (1.0 - smoothstep(0.95, 1.0, uv.x));',
+        '  a = smoothstep(0.03, 1.0, a);',
+        '  gl_FragColor = vec4(col*a, a);',
+        '}',
+      ].join('\n');
+      const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
+      const prog = gl.createProgram()!;
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) still();
+      else {
+        gl.useProgram(prog);
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(prog, 'p');
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+        gl.clearColor(0, 0, 0, 0);
+
+        const size = () => {
+          const dpr = Math.min(devicePixelRatio || 1, 2);
+          cv.width = Math.max(1, Math.round(cv.clientWidth * dpr)); cv.height = Math.max(1, Math.round(cv.clientHeight * dpr));
+          gl.viewport(0, 0, cv.width, cv.height);
+        };
+        size(); addEventListener('resize', size);
+
+        const frame = () => {
+          requestAnimationFrame(frame);
+          if (document.hidden || video.readyState < 2) return;
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        };
+        // playback can be refused (background tab, iOS low-power mode): show the still and retry later
+        const play = () => video.play().then(() => root.classList.remove('still'), still);
+        play();
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && video.paused) play(); });
+        addEventListener('pointerdown', () => { if (video.paused) play(); }, { once: true });
+        video.addEventListener('error', still);
+        requestAnimationFrame(frame);
+      }
+    }
+  }
+</script>

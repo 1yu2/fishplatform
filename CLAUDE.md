@@ -80,6 +80,11 @@
 - 360 宽的源视频放大后会略软,别再放得更大;有更高清原片可直接替换 mp4(背景色标需重新测)。
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
+## 植物循环动画(博客 / 学习页左下角)
+- 源:`ref3.mov`(橙色羽毛状植物 + 紫色缎带叶 + 卷须,灰色渐变底)。**离线**处理(Python/OpenCV):去掉前 100 帧播放器画面和左右黑边;用低饱和像素建背景板,按颜色距离 + 饱和度抠出 alpha;调色:暖色羽穗 → 紫/丁香/近白,冷色缎带 → 深靛紫;60→30fps;**首尾 1.5s 交叉淡化烘进视频**,所以 `<video loop>` 无缝。
+- 输出 `public/assets/plants.mp4`:左半彩色、右半 alpha 并排(460×360,H.264,1.6MB,avconvert `PresetAppleM4VWiFi`,输出须用 .m4v 再改名);`plants-still.png` 是静帧回退。
+- 组件 `src/components/plants/PlantLoop.astro`:固定在视口左下角、内容后面(z-index 1,不透明度 .62),WebGL 小 shader 合成两半;reduced-motion / 无 WebGL / 播放被拒显示静帧;≤760px 隐藏。用在 `blog/index`、`learning/index`、`learning/[id]`。
+
 ## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客;第 ② 期 projects 已做;待办 / 学习清单 / 写作 由 Studio + Supabase 实现,见上)
 - **框架:迁到 Astro**(Vercel Framework 改为 Astro,有构建步骤)。现有首页/About 页及其动画原样搬入,不改视觉。迁移后「单文件 index.html」约定作废。
 - **三语界面:English / 日本語 / 中文**,Astro i18n 路由:`/`(英文默认)、`/ja/…`、`/zh/…`;nav 语言切换并记住选择;界面文案每种语言一个字典文件。**文章不自动翻译**:每篇有 `lang`,译文用 `translationKey` 关联;单语文章在三种语言列表里都出现并带语言标记。
