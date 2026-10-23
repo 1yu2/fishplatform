@@ -249,10 +249,26 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
       if (Math.abs(e.clientY - r.top) <= 4) return (row?.previousElementSibling as HTMLElement | null) ?? null;
       return null;
     };
-    const onMove = (e: MouseEvent) => { if (!dragging.current) wrap.current?.classList.toggle('row-resize', !!rowEdge(e)); };
+    const hoverSoon = () => { clearTimeout(hoverTimer.current); hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); };
+    const onMove = (e: MouseEvent) => {
+      if (dragging.current) return;
+      wrap.current?.classList.toggle('row-resize', !!rowEdge(e));
+      const t = (e.target as HTMLElement).closest?.('table') as HTMLElement | null;
+      if (!t) { if (hoverEl.current) hoverSoon(); return; }
+      clearTimeout(hoverTimer.current);
+      if (hoverEl.current !== t) { hoverEl.current = t; refreshHoverRef.current(); }
+    };
+    const onContext = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest?.('table')) return;
+      e.preventDefault();
+      const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+      if (at) editor.chain().focus().setTextSelection(at.pos).run();
+      setTableOpen(true);
+    };
+    dom.addEventListener('mouseleave', hoverSoon); dom.addEventListener('contextmenu', onContext);
     const onDown = (e: MouseEvent) => { const tr = rowEdge(e); if (tr) { e.preventDefault(); e.stopPropagation(); startRowResize(e, tr); } };
     dom.addEventListener('mousemove', onMove); dom.addEventListener('mousedown', onDown, true);
-    return () => { dom.removeEventListener('mousemove', onMove); dom.removeEventListener('mousedown', onDown, true); editor.view.dom.removeEventListener('click', onClick); editor.destroy(); ed.current = null; };
+    return () => { dom.removeEventListener('mouseleave', hoverSoon); dom.removeEventListener('contextmenu', onContext); clearTimeout(hoverTimer.current); dom.removeEventListener('mousemove', onMove); dom.removeEventListener('mousedown', onDown, true); editor.view.dom.removeEventListener('click', onClick); editor.destroy(); ed.current = null; };
   }, []);
 
   const run = () => ed.current!.chain().focus();
@@ -456,30 +472,57 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   /* ---------- floating bars: table tools sit on the table, text tools on the selection ---------- */
   const [float, setFloat] = useState<{ kind: 'text' | 'table'; left: number; top: number } | null>(null);
-  const [tbl, setTbl] = useState<{ l: number; t: number; w: number; h: number } | null>(null); // the table under the caret, for its right-edge grip
+  // The table tools stay out of the way: hovering a table shows a small ⋯ handle (and the right-edge grip); clicking it, or
+  // right-clicking the table, opens the tool bar, which closes again when the caret leaves the table.
+  const [hover, setHover] = useState<{ l: number; t: number; w: number; h: number; pos: number } | null>(null);
+  const [tableOpen, setTableOpen] = useState(false);
+  const hoverTimer = useRef<number>();
+  const hoverEl = useRef<HTMLElement | null>(null);
   const tblPos = useRef<number | null>(null);
+  const tableAt = (e: TipEditor, el: HTMLElement) => {
+    const $p = e.state.doc.resolve(e.view.posAtDOM(el, 0));
+    for (let d = $p.depth; d > 0; d--) if ($p.node(d).type.name === 'table') return $p.before(d);
+    return -1;
+  };
+  function refreshHover() {
+    const el = hoverEl.current, e = ed.current;
+    if (!el || !e) return;
+    if (!el.isConnected) { hoverEl.current = null; return setHover(null); }
+    const r = el.getBoundingClientRect(), pos = tableAt(e, el);
+    if (pos < 0) { hoverEl.current = null; return setHover(null); }
+    setHover({ l: r.left, t: r.top, w: r.width, h: r.height, pos });
+  }
   function placeFloat() {
     const e = ed.current, box = wrap.current?.getBoundingClientRect();
-    if (!e || !box) { setTbl(null); return setFloat(null); }
+    if (!e || !box) return setFloat(null);
+    refreshHover();
     const { selection } = e.state, { $from } = selection;
     let tableDepth = -1;
     for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === 'table') { tableDepth = d; break; }
-    if (tableDepth > 0) {
+    if (tableDepth > 0) tblPos.current = $from.before(tableDepth);
+    else if (tableOpen) setTableOpen(false); // the caret left the table: the tools go away
+    if (tableDepth > 0 && tableOpen) {
       const el = e.view.nodeDOM($from.before(tableDepth)) as HTMLElement | null;
-      if (!el) { setTbl(null); return setFloat(null); }
-      const r = el.getBoundingClientRect(), tr = (el.querySelector('table') ?? el).getBoundingClientRect();
-      if (r.bottom < box.top || r.top > box.bottom) { setTbl(null); return setFloat(null); }
-      tblPos.current = $from.before(tableDepth);
-      setTbl({ l: tr.left, t: Math.max(tr.top, box.top), w: tr.width, h: Math.min(tr.bottom, box.bottom) - Math.max(tr.top, box.top) });
-      return setFloat({ kind: 'table', left: Math.max(box.left + 8, r.left), top: Math.max(box.top + 6, r.top - 46) });
+      if (!el) return setFloat(null);
+      const r = el.getBoundingClientRect();
+      if (r.bottom < box.top || r.top > box.bottom) return setFloat(null);
+      return setFloat({ kind: 'table', left: Math.max(box.left + 8, Math.min(r.left, window.innerWidth - 660)), top: Math.max(box.top + 6, r.top - 46) });
     }
-    setTbl(null);
-    if (selection.empty || (selection as any).node) return setFloat(null); // only a text selection gets the bar
+    if (selection.empty || (selection as any).node) return setFloat(null); // only a text selection gets the text bar
     const a = e.view.coordsAtPos(selection.from), b = e.view.coordsAtPos(selection.to);
     const top = Math.min(a.top, b.top), bottom = Math.max(a.bottom, b.bottom);
     if (bottom < box.top || top > box.bottom) return setFloat(null);
     const mid = (Math.min(a.left, b.left) + Math.max(a.right, b.right)) / 2;
     setFloat({ kind: 'text', left: Math.max(box.left + 8, mid - 150), top: top - 46 < box.top + 6 ? bottom + 8 : top - 46 });
+  }
+  /** open the table tool bar for the table at `pos`, putting the caret in it if it is somewhere else */
+  function openTable(pos: number) {
+    const e = ed.current; if (!e) return;
+    const { $from } = e.state.selection;
+    let inside = false;
+    for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === 'table' && $from.before(d) === pos) inside = true;
+    if (!inside) e.chain().focus().setTextSelection(pos + 4).run(); // the first cell
+    tblPos.current = pos; setTableOpen(true);
   }
   /**
    * Table size, the usual way: dragging a column border (including the table's right edge) is handled by the table
@@ -502,10 +545,10 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
   /** the table's right edge: widens or narrows the last column (the other columns keep their width) */
-  function startTableEdge(e: MouseEvent) {
+  function startTableEdge(e: MouseEvent, pos: number) {
     e.preventDefault(); e.stopPropagation();
-    const editor = ed.current, pos = tblPos.current;
-    if (!editor || pos == null) return;
+    const editor = ed.current;
+    if (!editor) return;
     const wrapper = editor.view.nodeDOM(pos) as HTMLElement | null, table = wrapper?.querySelector('table');
     const first = table?.querySelector('tr');
     if (!wrapper || !first) return;
@@ -555,7 +598,15 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     editor.view.dispatch(tr);
   }
   const placeRef = useRef(placeFloat); placeRef.current = placeFloat;
-  useLayoutEffect(() => { placeFloat(); }, [saveTick]);
+  const refreshHoverRef = useRef(refreshHover); refreshHoverRef.current = refreshHover;
+  useLayoutEffect(() => { placeFloat(); }, [saveTick, tableOpen]);
+  useEffect(() => {
+    if (!tableOpen) return;
+    const down = (e: MouseEvent) => { const t = e.target as HTMLElement; if (!t.closest?.('.st-float, table')) setTableOpen(false); };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setTableOpen(false);
+    document.addEventListener('mousedown', down); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc); };
+  }, [tableOpen]);
   useEffect(() => {
     const go = () => placeRef.current();
     wrap.current?.addEventListener('scroll', go); window.addEventListener('resize', go);
@@ -697,7 +748,14 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           </div>
         </aside>
       )}
-      {tbl && <div class="st-tbl-edge" title="拖动调整表格宽度" style={{ left: tbl.l + tbl.w - 4, top: tbl.t, height: tbl.h }} onMouseDown={startTableEdge} />}
+      {hover && !tableOpen && (
+        <button type="button" class="st-tbl-handle" title="表格工具(也可以右键点表格)" style={{ left: hover.l, top: Math.max((wrap.current?.getBoundingClientRect().top ?? 0) + 4, hover.t - 28) }}
+          onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
+          onMouseDown={(e) => e.preventDefault()} onClick={() => openTable(hover.pos)}>⋯</button>
+      )}
+      {hover && <div class="st-tbl-edge" title="拖动调整表格宽度" style={{ left: hover.l + hover.w - 4, top: hover.t, height: hover.h }}
+        onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
+        onMouseDown={(e) => startTableEdge(e, hover.pos)} />}
       {float && (
         <div class="st-float" style={{ left: float.left, top: float.top }} onMouseDown={(e) => e.preventDefault()}>
           {float.kind === 'table' && (<>

@@ -267,3 +267,5 @@ body.st-resizing{user-select:none}
 .st-tbl-edge:hover{background:rgba(124,77,255,.35)}
 .st-doc .tbl-center table{margin-left:auto; margin-right:auto}
 .st-doc .tbl-right table{margin-left:auto; margin-right:0}
+.st-tbl-handle{position:fixed; z-index:126; width:26px; height:22px; padding:0; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); color:var(--accent-2); font-size:1rem; line-height:1; cursor:pointer; box-shadow:0 4px 12px rgba(43,37,69,.15)}
+.st-tbl-handle:hover{background:rgba(124,77,255,.1)}
