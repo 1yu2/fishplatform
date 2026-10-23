@@ -1,0 +1,125 @@
+---
+// Pictures in an article (mind maps, architecture diagrams, any image) can be zoomed *in place*: the picture keeps its
+// frame and the content inside scales around the mouse. Click the picture, then scroll to zoom (or hold Ctrl/⌘ and
+// scroll without clicking); drag to move; double-click to zoom in or reset; ＋ − ⟲ buttons appear on hover.
+---
+<script is:inline>
+(function(){
+  var MAX = 8;
+  function setup(img){
+    if(img.closest('a') || img.dataset.zv) return;
+    if((img.naturalWidth || 0) < 300) return;                 // icons, small pictures
+    img.dataset.zv = '1';
+
+    var crop = img.closest('.dg-crop');                       // a cropped diagram already has its own clipping frame
+    var frame, inner = document.createElement('div');
+    inner.className = 'zv-inner';
+    if(crop){
+      frame = crop;
+      crop.insertBefore(inner, img); inner.appendChild(img);
+    } else {
+      frame = document.createElement('div');
+      frame.className = 'zv';
+      var cs = getComputedStyle(img);
+      frame.style.width = img.style.width || '';              // keep the size chosen in Studio (a % of the column)
+      if(!img.style.width) frame.style.maxWidth = '100%';
+      frame.style.borderRadius = cs.borderRadius; frame.style.border = cs.border;
+      frame.style.margin = cs.marginTop + ' ' + (cs.marginLeft === cs.marginRight && cs.marginLeft !== '0px' ? 'auto' : '0') + ' ' + cs.marginBottom;
+      if(!img.style.width && cs.marginLeft === '0px') frame.style.width = 'fit-content';
+      img.parentNode.insertBefore(frame, img);
+      frame.appendChild(inner); inner.appendChild(img);
+      img.style.cssText += ';width:100%;height:auto;display:block;margin:0;border:0;border-radius:0';
+    }
+    frame.classList.add('zv-frame');
+    frame.insertAdjacentHTML('beforeend',
+      '<div class="zv-tools"><button type="button" data-a="in" aria-label="Zoom in">+</button><button type="button" data-a="out" aria-label="Zoom out">−</button><button type="button" data-a="reset" aria-label="Reset" hidden>⟲</button></div>' +
+      '<div class="zv-hint">点一下图片 · 滚轮缩放 · 拖动平移 · 双击放大</div>');
+    var reset = frame.querySelector('[data-a="reset"]');
+
+    var s = 1, x = 0, y = 0;
+    function clamp(){
+      var r = frame.getBoundingClientRect();
+      x = Math.min(0, Math.max(r.width * (1 - s), x)); y = Math.min(0, Math.max(r.height * (1 - s), y));
+    }
+    function apply(){
+      clamp();
+      inner.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+      frame.classList.toggle('zv-zoomed', s > 1.001);
+      reset.hidden = s <= 1.001;
+    }
+    function zoomAt(ns, px, py){
+      ns = Math.max(1, Math.min(MAX, ns));
+      x = px - (px - x) * (ns / s); y = py - (py - y) * (ns / s); s = ns; apply();
+    }
+    function local(e){ var r = frame.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+    frame.addEventListener('wheel', function(e){
+      if(!(e.ctrlKey || e.metaKey || frame.classList.contains('zv-active'))) return;   // otherwise the page scrolls as usual
+      e.preventDefault();
+      var p = local(e);
+      zoomAt(s * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)), p.x, p.y);
+    }, { passive: false });
+
+    var pts = {}, lastDist = 0;
+    frame.addEventListener('pointerdown', function(e){
+      if(e.target.closest('.zv-tools')) return;
+      frame.classList.add('zv-active');
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pts);
+      if(ids.length === 2) lastDist = Math.hypot(pts[ids[0]].x - pts[ids[1]].x, pts[ids[0]].y - pts[ids[1]].y);
+      if(s > 1 || ids.length === 2) frame.setPointerCapture(e.pointerId);
+    });
+    frame.addEventListener('pointermove', function(e){
+      var p = pts[e.pointerId]; if(!p) return;
+      var ids = Object.keys(pts);
+      if(ids.length === 2){
+        pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var a = pts[ids[0]], b = pts[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y), r = frame.getBoundingClientRect();
+        if(lastDist) zoomAt(s * d / lastDist, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+        lastDist = d; return;
+      }
+      if(s <= 1) return;
+      x += e.clientX - p.x; y += e.clientY - p.y; pts[e.pointerId] = { x: e.clientX, y: e.clientY }; apply();
+    });
+    function up(e){ delete pts[e.pointerId]; lastDist = 0; }
+    frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
+    frame.addEventListener('pointerleave', function(e){ if(e.pointerType === 'mouse') frame.classList.remove('zv-active'); });
+    frame.addEventListener('dblclick', function(e){
+      if(e.target.closest('.zv-tools')) return;
+      var p = local(e);
+      if(s > 1.5){ s = 1; x = 0; y = 0; apply(); } else zoomAt(2.5, p.x, p.y);
+    });
+    frame.querySelector('.zv-tools').addEventListener('click', function(e){
+      var a = e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return;
+      var r = frame.getBoundingClientRect();
+      if(a === 'reset'){ s = 1; x = 0; y = 0; apply(); }
+      else zoomAt(a === 'in' ? s * 1.4 : s / 1.4, r.width / 2, r.height / 2);
+    });
+    window.addEventListener('resize', apply);
+  }
+
+  function init(){
+    document.querySelectorAll('.prose img').forEach(function(img){
+      if(img.complete) setup(img); else img.addEventListener('load', function(){ setup(img); }, { once: true });
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+
+<style is:global>
+  .zv-frame{position:relative; overflow:hidden}
+  .zv{display:block}
+  .zv-inner{transform-origin:0 0; will-change:transform}
+  .dg-crop > .zv-inner{position:absolute; inset:0}
+  .zv-frame.zv-zoomed{cursor:grab; touch-action:none}
+  .zv-frame.zv-zoomed:active{cursor:grabbing}
+  .zv-frame.zv-active{box-shadow:0 0 0 2px var(--accent-soft, #b9a4ff)}
+  .zv-tools{position:absolute; top:8px; right:8px; display:flex; gap:4px; opacity:0; transition:opacity .2s; z-index:2}
+  .zv-frame:hover .zv-tools, .zv-frame:focus-within .zv-tools{opacity:1}
+  .zv-tools button{width:30px; height:30px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:#2b2545; font-size:1rem; line-height:1; cursor:pointer; box-shadow:0 2px 8px rgba(43,37,69,.2)}
+  .zv-tools button:hover{background:#fff; color:#5a2fd0}
+  .zv-tools button[hidden]{display:none}
+  .zv-hint{position:absolute; left:8px; bottom:8px; padding:4px 10px; border-radius:999px; background:rgba(43,37,69,.68); color:#fff; font-size:.72rem; opacity:0; pointer-events:none; transition:opacity .25s; z-index:2}
+  .zv-frame:hover:not(.zv-zoomed):not(.zv-active) .zv-hint{opacity:1}
+</style>

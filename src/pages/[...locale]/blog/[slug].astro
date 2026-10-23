@@ -3,6 +3,7 @@ import '../../../styles/site.css';
 import { render } from 'astro:content';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import ZoomImages from '../../../components/ZoomImages.astro';
 import { SITE } from '../../../site';
 import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate, getPosts, postPath, readingMinutes } from '../../../lib/posts';
@@ -146,8 +147,10 @@ const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.repl
       {toc.length > 1 && (
         <aside class="toc" aria-label={t('blog.toc')}>
           <div class="toc-inner">
-            <p class="toc-title">{t('blog.toc')}</p>
-            <ol>
+            <button type="button" class="toc-toggle" aria-expanded="true" aria-controls="toc-list">
+              <span class="toc-title">{t('blog.toc')}</span><span class="chev" aria-hidden="true">▾</span>
+            </button>
+            <ol id="toc-list">
               {toc.map((h) => <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>)}
             </ol>
           </div>
@@ -160,7 +163,25 @@ const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.repl
       <a href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
     </footer>
   </main>
+  <ZoomImages />
 </Base>
+
+<script is:inline>
+  // show / hide the table of contents; the choice is remembered (on narrow screens it starts hidden)
+  (function(){
+    var box = document.querySelector('.toc'), btn = document.querySelector('.toc-toggle'), grid = document.querySelector('.post-grid');
+    if(!box || !btn) return;
+    function set(open, save){
+      box.classList.toggle('collapsed', !open);
+      if(grid) grid.classList.toggle('toc-hidden', !open);
+      btn.setAttribute('aria-expanded', String(open));
+      if(save){ try { localStorage.setItem('fp-toc', open ? '1' : '0'); } catch(e) {} }
+    }
+    var stored = null; try { stored = localStorage.getItem('fp-toc'); } catch(e) {}
+    set(stored !== null ? stored === '1' : !window.matchMedia('(max-width:1100px)').matches, false);
+    btn.addEventListener('click', function(){ set(box.classList.contains('collapsed'), true); });
+  })();
+</script>
 
 <script is:inline>
   // highlight the section being read in the table of contents
@@ -182,7 +203,13 @@ const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.repl
 
 <style>
   .post-grid{display:grid; grid-template-columns:minmax(0,760px) minmax(0,1fr); gap:clamp(30px,6vw,90px); padding-top:120px}
-  @media(max-width:1100px){ .post-grid{grid-template-columns:minmax(0,1fr)} .toc{display:none} }
+  /* with the table of contents hidden the article moves to the middle of the page */
+  @media(min-width:1101px){
+    .post-grid:global(.toc-hidden){grid-template-columns:minmax(0,1fr) minmax(0,760px) minmax(0,1fr)}
+    .post-grid:global(.toc-hidden) .post{grid-column:2}
+    .post-grid:global(.toc-hidden) .toc{grid-column:3}
+  }
+  @media(max-width:1100px){ .post-grid{grid-template-columns:minmax(0,1fr)} .toc{order:-1} .toc-inner{position:static !important; margin-top:0 !important; padding-left:0 !important; border-left:0 !important} }
   .back{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); text-decoration:none}
   .back:hover{color:var(--accent-2)}
   header{margin-top:26px}
@@ -226,7 +253,13 @@ const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.repl
   /* ---------- table of contents ---------- */
   .toc{position:relative}
   .toc-inner{position:sticky; top:110px; margin-top:150px; padding-left:18px; border-left:1px solid var(--line)}
-  .toc-title{font-family:var(--font-mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 12px}
+  .toc-toggle{display:flex; align-items:center; gap:8px; width:100%; padding:0; margin:0 0 12px; border:0; background:none; cursor:pointer; text-align:left}
+  .toc-title{font-family:var(--font-mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0}
+  .toc-toggle:hover .toc-title{color:var(--accent-2)}
+  .chev{font-size:.7rem; color:var(--faint); transition:transform .2s}
+  .toc.collapsed .chev{transform:rotate(-90deg)}
+  .toc.collapsed ol{display:none}
+  .toc.collapsed .toc-toggle{margin-bottom:0}
   .toc ol{list-style:none; margin:0; padding:0}
   .toc li{margin:7px 0; font-size:.86rem; line-height:1.4}
   .toc li.d3{padding-left:14px; font-size:.8rem}

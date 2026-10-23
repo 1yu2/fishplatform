@@ -202,7 +202,7 @@ html.st-focus
 .st-mm-select{height:30px; padding:0 8px; font-size:.82rem; width:auto}
 .st-mm-actions{align-items:center}
 @media (max-width:900px){ .st-mm-hint{display:none} }
-.st-img-sel{position:fixed; z-index:120; border:2px solid var(--accent); border-radius:6px; pointer-events:none}
+.st-img-sel{position:absolute; border:2px solid var(--accent); border-radius:6px; pointer-events:none}
 /* no visible dots: the whole edge / corner is a grab zone, and the cursor shows the direction */
 .st-img-sel .h{position:absolute; pointer-events:auto; background:transparent}
 .st-img-sel .h.n{left:0; right:0; top:-6px; height:12px; cursor:ns-resize}
@@ -263,9 +263,22 @@ body.st-resizing{user-select:none}
 .st-float button:hover, .st-float button.on{background:rgba(124,77,255,.1); color:var(--accent-2)}
 .st-float .sep{width:1px; height:18px; background:var(--line-2); margin:0 4px}
 .st-doc.row-resize .ProseMirror, .st-doc.row-resize .ProseMirror *{cursor:row-resize !important}
-.st-tbl-edge{position:fixed; z-index:125; width:9px; cursor:ew-resize; border-radius:4px}
+.st-tbl-edge{position:absolute; pointer-events:auto; width:9px; cursor:ew-resize; border-radius:4px}
 .st-tbl-edge:hover{background:rgba(124,77,255,.35)}
 .st-doc .tbl-center table{margin-left:auto; margin-right:auto}
 .st-doc .tbl-right table{margin-left:auto; margin-right:0}
-.st-tbl-handle{position:fixed; z-index:126; width:26px; height:22px; padding:0; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); color:var(--accent-2); font-size:1rem; line-height:1; cursor:pointer; box-shadow:0 4px 12px rgba(43,37,69,.15)}
+.st-tbl-handle{position:absolute; pointer-events:auto; width:26px; height:22px; padding:0; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); color:var(--accent-2); font-size:1rem; line-height:1; cursor:pointer; box-shadow:0 4px 12px rgba(43,37,69,.15)}
 .st-tbl-handle:hover{background:rgba(124,77,255,.1)}
+.st-clip{position:fixed; z-index:120; overflow:hidden; pointer-events:none}
+.st-doc-row{display:flex; gap:12px; align-items:flex-start}
+.st-doc-row .st-doc{flex:1; min-width:0}
+.st-outline{flex:none; width:230px; height:calc(100vh - 222px); min-height:420px; overflow:auto; padding:16px 14px; background:var(--bg-2); border:1px solid var(--line-2); border-radius:16px}
+.st-outline-title{font-family:var(--font-mono); font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 10px}
+.st-outline ol{list-style:none; margin:0; padding:0}
+.st-outline li button{display:block; width:100%; text-align:left; border:0; background:none; cursor:pointer; font:inherit; font-size:.85rem; line-height:1.4; padding:5px 8px; border-radius:8px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.st-outline li button:hover{background:rgba(124,77,255,.08); color:var(--accent-2)}
+.st-outline li.d2 button{padding-left:20px}
+.st-outline li.d3 button{padding-left:32px; font-size:.8rem}
+.st-outline li.d4 button, .st-outline li.d5 button, .st-outline li.d6 button{padding-left:44px; font-size:.78rem}
+html.st-focus .st-outline{height:calc(100vh - 150px)}
+@media(max-width:900px){ .st-outline{display:none} }

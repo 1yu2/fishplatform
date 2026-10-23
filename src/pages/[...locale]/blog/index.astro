@@ -6,6 +6,8 @@ import NowStrip from '../../../components/now/NowStrip.astro';
 import { SITE } from '../../../site';
 import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate } from '../../../lib/posts';
+import PostItem from '../../../components/blog/PostItem.astro';
+import { getProjects, projectPath, projectsFor } from '../../../lib/projects';
 import { blogEntries, cachePublic } from '../../../lib/public-data';
 
 // rendered on request so posts published from Studio appear right away (cached at the edge for a minute)
@@ -20,6 +22,16 @@ const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/blog/
 const posts = await blogEntries();
 const tags = [...new Set(posts.flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b));
 const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
+
+// grouping by tag / project (a post with several tags shows under each); projects come from Studio notes' links
+const allProjects = await getProjects();
+const projectInfo = new Map(projectsFor(allProjects, lang).map((pr) => [pr.data.translationKey ?? pr.id, { title: pr.data.title, href: projectPath(pr) }]));
+const byTag = tags.map((tag) => ({ label: tag, posts: posts.filter((p) => p.tags.includes(tag)) }));
+const untagged = posts.filter((p) => p.tags.length === 0);
+const byProject = [...projectInfo.entries()]
+  .map(([key, info]) => ({ label: info.title, href: info.href, posts: posts.filter((p) => p.projects.includes(key)) }))
+  .filter((g) => g.posts.length > 0);
+const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)));
 ---
 <Base lang={lang} title={t('meta.blog')} description={t('meta.blogDesc')} path="/blog/">
   <Nav lang={lang} current="blog" alternates={alternates} />
@@ -42,27 +54,48 @@ const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
 
       {posts.length === 0 && <p class="empty">{t('blog.empty')}</p>}
 
-      {years.map((year) => (
-        <section class="year" data-year={year}>
-          <h2 class="year-label">{year}</h2>
-          <ol class="posts">
-            {posts.filter((p) => p.date.getFullYear() === year).map((p) => (
-              <li class="post" data-tags={p.tags.join('|')}>
-                <a href={p.href}>
-                  <div class="meta">
-                    <time datetime={p.date.toISOString()}>{formatDate(p.date, lang)}</time>
-                    <span>· {t('blog.minRead', { n: p.minutes })}</span>
-                    {p.lang !== lang && <span class="lang-badge">{languages[p.lang]}</span>}
-                  </div>
-                  <h3 lang={p.lang}>{p.title}</h3>
-                  <p lang={p.lang}>{p.summary}</p>
-                  <div class="tags">{p.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ))}
+      {posts.length > 0 && (
+        <div class="views" role="group" aria-label={t('blog.view')}>
+          {(['time', 'tag', 'project'] as const).map((v, i) => (
+            <button type="button" class="view-btn" data-view={v} aria-pressed={i === 0 ? 'true' : 'false'}>{t(`blog.view.${v}`)}</button>
+          ))}
+        </div>
+      )}
+
+      <div class="view" data-view="time">
+        {years.map((year) => (
+          <section class="group">
+            <h2 class="group-label">{year}</h2>
+            <ol class="posts">
+              {posts.filter((p) => p.date.getFullYear() === year).map((p) => <PostItem p={p} lang={lang} />)}
+            </ol>
+          </section>
+        ))}
+      </div>
+
+      <div class="view" data-view="tag" hidden>
+        {[...byTag, ...(untagged.length ? [{ label: t('blog.noTag'), posts: untagged }] : [])].map((g) => (
+          <section class="group">
+            <h2 class="group-label">{g.label}<small>{t('blog.posts', { n: g.posts.length })}</small></h2>
+            <ol class="posts">{g.posts.map((p) => <PostItem p={p} lang={lang} />)}</ol>
+          </section>
+        ))}
+      </div>
+
+      <div class="view" data-view="project" hidden>
+        {byProject.map((g) => (
+          <section class="group">
+            <h2 class="group-label"><a href={g.href}>{g.label}</a><small>{t('blog.posts', { n: g.posts.length })}</small></h2>
+            <ol class="posts">{g.posts.map((p) => <PostItem p={p} lang={lang} />)}</ol>
+          </section>
+        ))}
+        {noProject.length > 0 && (
+          <section class="group">
+            <h2 class="group-label">{t('blog.noProject')}<small>{t('blog.posts', { n: noProject.length })}</small></h2>
+            <ol class="posts">{noProject.map((p) => <PostItem p={p} lang={lang} />)}</ol>
+          </section>
+        )}
+      </div>
       </div>
       <NowStrip lang={lang} variant="side" />
     </div>
@@ -75,9 +108,12 @@ const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
 </Base>
 
 <script is:inline>
-  // tag filter: show posts carrying the tag; hide years left empty
+  // tag filter (across every grouping) and the grouping switch; the choice is remembered
   (function(){
     var chips = document.querySelectorAll('.filter .chip');
+    function refresh(){
+      document.querySelectorAll('.group').forEach(function(g){ g.hidden = !g.querySelector('.post:not([hidden])'); });
+    }
     chips.forEach(function(c){
       c.addEventListener('click', function(){
         var tag = c.getAttribute('data-tag');
@@ -85,18 +121,24 @@ const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
         document.querySelectorAll('.post').forEach(function(li){
           li.hidden = !!tag && li.getAttribute('data-tags').split('|').indexOf(tag) < 0;
         });
-        document.querySelectorAll('.year').forEach(function(y){
-          y.hidden = !y.querySelector('.post:not([hidden])');
-        });
+        refresh();
       });
     });
+    var btns = document.querySelectorAll('.view-btn');
+    function show(v){
+      btns.forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-view') === v)); });
+      document.querySelectorAll('.view').forEach(function(el){ el.hidden = el.getAttribute('data-view') !== v; });
+      try { localStorage.setItem('fp-blog-view', v); } catch(e) {}
+    }
+    btns.forEach(function(b){ b.addEventListener('click', function(){ show(b.getAttribute('data-view')); }); });
+    try { var saved = localStorage.getItem('fp-blog-view'); if (saved && document.querySelector('.view-btn[data-view="' + saved + '"]')) show(saved); } catch(e) {}
   })();
 </script>
 
 <style>
-  .blog{padding-top:130px}
-  .blog-head{max-width:760px}
-  .blog-body{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:clamp(30px,5vw,70px); align-items:start}
+  .blog{padding-top:130px; position:relative}
+  .blog-head{max-width:760px; position:relative; z-index:1}
+  .blog-body{position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:clamp(30px,5vw,70px); align-items:start}
   .blog-body :global(.now-side){position:sticky; top:100px; margin-top:44px}
   @media(max-width:1100px){
     .blog-body{grid-template-columns:minmax(0,1fr)}
@@ -112,31 +154,37 @@ const years = [...new Set(posts.map((p) => p.date.getFullYear()))];
   .chip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent)}
   .empty{color:var(--muted); margin-top:40px}
 
-  .year{display:grid; grid-template-columns:120px minmax(0,1fr); gap:24px; margin-top:46px}
-  .year[hidden], .post[hidden]{display:none}   /* author display rules would otherwise beat [hidden] */
-  .year-label{
+  .group{display:grid; grid-template-columns:150px minmax(0,1fr); gap:24px; margin-top:46px}
+  .group[hidden], .view[hidden], .posts :global(.post[hidden]){display:none}   /* author display rules would otherwise beat [hidden] */
+  .group-label{
     font-family:var(--font-mono); font-weight:400; font-size:.85rem; letter-spacing:.12em;
-    color:var(--faint); margin:22px 0 0;
+    color:var(--faint); margin:22px 0 0; display:flex; flex-direction:column; gap:4px; overflow-wrap:anywhere;
   }
+  .group-label small{font-size:.68rem; letter-spacing:.04em; color:var(--faint); opacity:.8}
+  .group-label a{color:var(--accent-2); text-decoration:none}
+  .group-label a:hover{text-decoration:underline}
+  .views{display:inline-flex; gap:2px; background:rgba(124,77,255,.07); border-radius:999px; padding:3px; margin-top:26px}
+  .view-btn{border:0; background:none; cursor:pointer; font:inherit; font-size:.8rem; padding:6px 14px; border-radius:999px; color:var(--muted)}
+  .view-btn[aria-pressed="true"]{background:var(--bg-2); color:var(--accent-2); font-weight:600; box-shadow:0 1px 4px rgba(60,40,140,.12)}
   .posts{list-style:none; margin:0; padding:0; border-top:1px solid var(--line)}
-  .post{border-bottom:1px solid var(--line)}
-  .post a{display:block; padding:22px 4px 24px; text-decoration:none; color:inherit; position:relative}
-  .post a::before{
+  .posts :global(.post){border-bottom:1px solid var(--line)}
+  .posts :global(.post a){display:block; padding:22px 4px 24px; text-decoration:none; color:inherit; position:relative}
+  .posts :global(.post a::before){
     content:""; position:absolute; left:-14px; top:28px; width:3px; height:0; border-radius:3px;
     background:linear-gradient(var(--accent), var(--glow)); transition:height .3s cubic-bezier(.2,.7,.2,1);
   }
-  .post a:hover::before{height:34px}
-  .meta{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-family:var(--font-mono); font-size:.72rem; color:var(--faint)}
-  .post h3{
+  .posts :global(.post a:hover::before){height:34px}
+  .posts :global(.meta){display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-family:var(--font-mono); font-size:.72rem; color:var(--faint)}
+  .posts :global(.post h3){
     font-family:var(--font-display); font-weight:700; font-size:clamp(1.2rem, 2.2vw, 1.55rem); line-height:1.25;
     color:var(--fg-strong); margin:10px 0 0; transition:color .2s;
   }
-  .post a:hover h3{color:var(--accent-2)}
-  .post p{color:var(--muted); margin:8px 0 0; max-width:68ch}
-  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:14px}
+  .posts :global(.post a:hover h3){color:var(--accent-2)}
+  .posts :global(.post p){color:var(--muted); margin:8px 0 0; max-width:68ch}
+  .posts :global(.tags){display:flex; flex-wrap:wrap; gap:6px; margin-top:14px}
   @media(max-width:700px){
-    .year{grid-template-columns:1fr; gap:4px}
-    .year-label{margin:0}
-    .post a::before{display:none}
+    .group{grid-template-columns:1fr; gap:4px}
+    .group-label{margin:0; flex-direction:row; gap:10px; align-items:baseline}
+    .posts :global(.post a::before){display:none}
   }
 </style>

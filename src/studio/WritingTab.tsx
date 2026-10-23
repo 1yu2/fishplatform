@@ -132,6 +132,7 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
   const [n, setN] = useState<Note>(note);
   const [saveState, setSaveState] = useState<'saved' | 'dirty' | 'saving'>('saved');
   const [metaOpen, setMetaOpen] = pref<'1' | '0'>('editor-meta', typeof window !== 'undefined' && window.innerWidth > 1400 ? '1' : '0');
+  const [outlineOpen, setOutlineOpen] = pref<'1' | '0'>('editor-outline', '0');
   const [focus, setFocus] = useState(false);
   const [menu, setMenu] = useState<'' | 'insert' | 'code' | 'learning' | 'project'>('');
   const [uploading, setUploading] = useState(false);
@@ -271,6 +272,17 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     return () => { dom.removeEventListener('mouseleave', hoverSoon); dom.removeEventListener('contextmenu', onContext); clearTimeout(hoverTimer.current); dom.removeEventListener('mousemove', onMove); dom.removeEventListener('mousedown', onDown, true); editor.view.dom.removeEventListener('click', onClick); editor.destroy(); ed.current = null; };
   }, []);
 
+  // outline (目录): the headings of the document, click one to jump to it
+  const headings: { level: number; text: string; pos: number }[] = [];
+  ed.current?.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'heading') headings.push({ level: node.attrs.level, text: node.textContent.trim() || '(空标题)', pos });
+    return node.type.name !== 'heading';
+  });
+  function goToHeading(pos: number) {
+    const e = ed.current; if (!e) return;
+    (e.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    e.chain().setTextSelection(pos + 1).run();
+  }
   const run = () => ed.current!.chain().focus();
   const on = (name: string, attrs?: Record<string, unknown>) => !!ed.current?.isActive(name, attrs);
   function promptLink() {
@@ -691,9 +703,23 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
               )}
             </div>
           </div>
+          <span class="st-spacer" />
+          <div class="st-tool-group">
+            <T t={outlineOpen === '1' ? '隐藏目录' : '显示目录'} on={outlineOpen === '1'} onClick={() => setOutlineOpen(outlineOpen === '1' ? '0' : '1')}>☰ 目录</T>
+          </div>
         </div>
 
-        <div class="st-doc" ref={wrap}><div ref={host} /></div>
+        <div class="st-doc-row">
+          <div class="st-doc" ref={wrap}><div ref={host} /></div>
+          {outlineOpen === '1' && (
+            <aside class="st-outline" aria-label="目录">
+              <p class="st-outline-title">目录</p>
+              {headings.length === 0
+                ? <p class="st-muted">写几个标题,会出现在这里</p>
+                : <ol>{headings.map((h) => <li class={`d${h.level}`}><button type="button" title={h.text} onClick={() => goToHeading(h.pos)}>{h.text}</button></li>)}</ol>}
+            </aside>
+          )}
+        </div>
 
         <div class="st-status">
           <span>{stats.count} 字 · 约 {stats.minutes} 分钟</span>
@@ -748,14 +774,33 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           </div>
         </aside>
       )}
-      {hover && !tableOpen && (
-        <button type="button" class="st-tbl-handle" title="表格工具(也可以右键点表格)" style={{ left: hover.l, top: Math.max((wrap.current?.getBoundingClientRect().top ?? 0) + 4, hover.t - 28) }}
-          onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
-          onMouseDown={(e) => e.preventDefault()} onClick={() => openTable(hover.pos)}>⋯</button>
-      )}
-      {hover && <div class="st-tbl-edge" title="拖动调整表格宽度" style={{ left: hover.l + hover.w - 4, top: hover.t, height: hover.h }}
-        onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
-        onMouseDown={(e) => startTableEdge(e, hover.pos)} />}
+      {(() => {
+        // handles that sit on the document are clipped to it, so they never float over the toolbar or the page header while scrolling
+        const box = wrap.current?.getBoundingClientRect();
+        if (!box || (!hover && !(sel && rect))) return null;
+        return (
+          <div class="st-clip" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
+            {hover && !tableOpen && (
+              <button type="button" class="st-tbl-handle" title="表格工具(也可以右键点表格)" style={{ left: hover.l - box.left, top: Math.max(4, hover.t - box.top - 28) }}
+                onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
+                onMouseDown={(e) => e.preventDefault()} onClick={() => openTable(hover.pos)}>⋯</button>
+            )}
+            {hover && <div class="st-tbl-edge" title="拖动调整表格宽度" style={{ left: hover.l + hover.w - 4 - box.left, top: hover.t - box.top, height: hover.h }}
+              onMouseEnter={() => clearTimeout(hoverTimer.current)} onMouseLeave={() => { hoverTimer.current = window.setTimeout(() => { hoverEl.current = null; setHover(null); }, 350); }}
+              onMouseDown={(e) => startTableEdge(e, hover.pos)} />}
+            {sel && rect && (
+              <div class="st-img-sel" style={{ left: rect.l - box.left, top: rect.t - box.top, width: rect.w, height: rect.h }}>
+                <div class="bar" style={rect.t - box.top < 52 ? { top: 8, right: 8 } : undefined}>
+                  <button class="st-btn primary" onClick={() => editImage(sel)}>编辑</button>
+                </div>
+                {/* corners scale (same shape); edges crop that side */}
+                {([['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]] as const).map(([c, sx, sy]) => <div class={`h ${c}`} onMouseDown={(e) => startResize(e, sx, sy)} />)}
+                {([['n', 0, -1], ['w', -1, 0], ['e', 1, 0], ['s', 0, 1]] as const).map(([c, hx, hy]) => <div class={`h ${c}`} onMouseDown={(e) => startEdgeCrop(e, hx, hy)} />)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {float && (
         <div class="st-float" style={{ left: float.left, top: float.top }} onMouseDown={(e) => e.preventDefault()}>
           {float.kind === 'table' && (<>
@@ -782,16 +827,6 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           <T t={float.kind === 'table' ? '文字左对齐(当前列)' : '左对齐'} onClick={() => align('left')}><AlignIcon k="left" /></T>
           <T t={float.kind === 'table' ? '文字居中(当前列)' : '居中'} onClick={() => align('center')}><AlignIcon k="center" /></T>
           <T t={float.kind === 'table' ? '文字右对齐(当前列)' : '右对齐'} onClick={() => align('right')}><AlignIcon k="right" /></T>
-        </div>
-      )}
-      {sel && rect && (
-        <div class="st-img-sel" style={{ left: rect.l, top: rect.t, width: rect.w, height: rect.h }}>
-          <div class="bar" style={rect.t < 52 ? { top: 8, right: 8 } : undefined}>
-            <button class="st-btn primary" onClick={() => editImage(sel)}>编辑</button>
-          </div>
-          {/* corners scale (same shape); edges crop that side */}
-          {([['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]] as const).map(([c, sx, sy]) => <div class={`h ${c}`} onMouseDown={(e) => startResize(e, sx, sy)} />)}
-          {([['n', 0, -1], ['w', -1, 0], ['e', 1, 0], ['s', 0, 1]] as const).map(([c, hx, hy]) => <div class={`h ${c}`} onMouseDown={(e) => startEdgeCrop(e, hx, hy)} />)}
         </div>
       )}
       {diagram?.kind === 'drawio' && <DiagramModal xml={diagram.data} onSave={(svg) => saveDiagram(svg, 'drawio', diagram.oldUrl)} onClose={() => setDiagram(null)} />}

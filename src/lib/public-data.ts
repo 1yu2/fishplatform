@@ -60,6 +60,8 @@ export interface BlogEntry {
   summary: string;
   date: Date;
   tags: string[];
+  /** project keys (a project's translationKey or id): only Studio notes can link projects */
+  projects: string[];
   lang: Lang;
   href: string;
   minutes: number;
@@ -68,14 +70,14 @@ export interface BlogEntry {
 export async function blogEntries(): Promise<BlogEntry[]> {
   const [posts, notes] = await Promise.all([getPosts(), publishedNotes()]);
   const files: BlogEntry[] = posts.map((p) => ({
-    source: 'file', slug: p.id, title: p.data.title, summary: p.data.summary, date: p.data.date, tags: p.data.tags,
+    source: 'file', slug: p.id, title: p.data.title, summary: p.data.summary, date: p.data.date, tags: p.data.tags, projects: [],
     lang: p.data.lang, href: postPath(p), minutes: readingMinutes(p.body),
   }));
   const taken = new Set(files.map((f) => `${f.lang}/${f.slug}`));
   const studio: BlogEntry[] = notes
     .filter((n) => n.slug && !taken.has(`${n.lang}/${n.slug}`))
     .map((n) => ({
-      source: 'studio', slug: n.slug!, title: n.title, summary: n.summary, date: new Date(n.published_at ?? n.created_at), tags: n.tags,
+      source: 'studio', slug: n.slug!, title: n.title, summary: n.summary, date: new Date(n.published_at ?? n.created_at), tags: n.tags, projects: n.projects ?? [],
       lang: n.lang, href: notePath(n), minutes: readingMinutes(n.body),
     }));
   return [...files, ...studio].sort((a, b) => b.date.valueOf() - a.date.valueOf());

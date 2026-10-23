@@ -1,0 +1,20 @@
+---
+import { languages, useTranslations, type Lang } from '../../i18n/utils';
+import { formatDate } from '../../lib/posts';
+import type { BlogEntry } from '../../lib/public-data';
+interface Props { p: BlogEntry; lang: Lang }
+const { p, lang } = Astro.props;
+const t = useTranslations(lang);
+---
+<li class="post" data-tags={p.tags.join('|')}>
+  <a href={p.href}>
+    <div class="meta">
+      <time datetime={p.date.toISOString()}>{formatDate(p.date, lang)}</time>
+      <span>· {t('blog.minRead', { n: p.minutes })}</span>
+      {p.lang !== lang && <span class="lang-badge">{languages[p.lang]}</span>}
+    </div>
+    <h3 lang={p.lang}>{p.title}</h3>
+    <p lang={p.lang}>{p.summary}</p>
+    <div class="tags">{p.tags.map((tag) => <span class="tag">{tag}</span>)}</div>
+  </a>
+</li>

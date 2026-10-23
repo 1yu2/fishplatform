@@ -26,6 +26,7 @@
   - 数据库:`supabase/schema.sql`(表 + RLS:访客只读公开/已发布的行,只有 `app_owner` 能写)、`supabase/seed.sql`(原花园数据)、`supabase/README.md`(用户自己建项目、建账号、填密钥的步骤)。
   - 环境变量:`PUBLIC_SUPABASE_URL`、`PUBLIC_SUPABASE_ANON_KEY`(本地 `.env`,线上 Vercel 环境变量;都是公开密钥,安全靠 RLS)。**不要**用 service_role key。没配置时网站照常运行,只是没有 Studio 数据。
 - **公开页面怎么读数据**:
+  - 博客列表可切换「按时间 / 按标签 / 按项目」三种分组(`blog/index.astro`,标签筛选对三种视图都生效,选择记在 localStorage);Studio 笔记关联的项目用于按项目分组。文章页目录可显示/隐藏(记在 localStorage `fp-toc`,窄屏默认收起)。Studio 写作页工具栏有「目录」按钮,显示文档大纲、点击跳转。
   - 博客列表和文章页 `[...locale]/blog/*` 改为**按请求渲染**(`prerender = false`,CDN 缓存 60s):仓库里的 Markdown 文章 + Studio 已发布笔记合并显示(`src/lib/public-data.ts` 的 `blogEntries()`;笔记用 `@astrojs/markdown-remark` 渲染,和文件文章同一套高亮)。文章页底部「相关」列出笔记关联的学习条目 / 项目 / 公开待办。
   - `/learning`(公开的学习清单,按 在学/想学/学完 分组)和 `/learning/<id>`(笔记、为它写过的文章、相关待办)也是按请求渲染。
   - 首页 004「现在」区块 + 博客侧栏:`src/components/now/NowStrip.astro`,浏览器直接请求 Supabase REST(只拿公开行):公开待办 + 在学的条目,按优先级排,完成的待办 7 天后自动消失(`KEEP_DONE_DAYS`)。

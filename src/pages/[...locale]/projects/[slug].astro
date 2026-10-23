@@ -4,6 +4,7 @@ import { render } from 'astro:content';
 import { Image } from 'astro:assets';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import ZoomImages from '../../../components/ZoomImages.astro';
 import { SITE } from '../../../site';
 import { defaultLang, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate } from '../../../lib/posts';
@@ -74,6 +75,7 @@ const host = (u: string) => new URL(u).host.replace(/^www\./, '') + new URL(u).p
       <a href={localePath(lang, '/projects/')}>{t('projects.back')}</a>
     </footer>
   </main>
+  <ZoomImages />
 </Base>
 
 <style>
