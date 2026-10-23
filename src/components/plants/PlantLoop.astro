@@ -13,7 +13,7 @@
 
 <style is:global>
   .plant-loop{
-    position:fixed; left:max(0px, calc((100vw - 1320px) / 2 - 40px)); bottom:0; z-index:1; pointer-events:none;
+    position:fixed; left:max(48px, calc((100vw - 1320px) / 2 + 40px)); bottom:clamp(40px, 12vh, 130px); z-index:1; pointer-events:none;
     width:clamp(150px, 17vw, 250px); aspect-ratio:230/360;
     opacity:.62;                       /* sits behind the content, so text stays readable over it */
     transition:opacity .6s ease;
@@ -45,7 +45,7 @@
         '  vec2 c = vec2(uv.x*0.5, uv.y);',
         '  vec3 col = texture2D(t, c).rgb;',
         '  float a = texture2D(t, vec2(0.5 + uv.x*0.5, uv.y)).r;',
-        '  a *= smoothstep(0.0, 0.05, uv.x) * (1.0 - smoothstep(0.95, 1.0, uv.x));',
+        '  a *= smoothstep(0.0, 0.05, uv.x) * (1.0 - smoothstep(0.95, 1.0, uv.x)) * smoothstep(0.0, 0.22, uv.y);',   // soft base now that it floats above the bottom edge
         '  a = smoothstep(0.03, 1.0, a);',
         '  gl_FragColor = vec4(col*a, a);',
         '}',
