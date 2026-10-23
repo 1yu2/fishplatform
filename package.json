@@ -15,6 +15,7 @@
     "astro": "5.18.2",
     "dompurify": "3.4.16",
     "marked": "18.0.14",
+    "mind-elixir": "5.15.1",
     "preact": "10.29.8"
   }
 }

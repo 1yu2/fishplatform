@@ -1,4 +1,5 @@
 // Server-side reads for public pages: only public / published rows are visible to the anon client.
+import { sizeDiagramImages } from './diagram';
 import { createMarkdownProcessor, type MarkdownHeading } from '@astrojs/markdown-remark';
 import { publicClient } from './supabase';
 import type { Learning, Note, Todo } from './studio-types';
@@ -86,7 +87,7 @@ let processor: ReturnType<typeof createMarkdownProcessor> | undefined;
 export async function renderMarkdown(md: string): Promise<{ html: string; headings: MarkdownHeading[] }> {
   processor ??= createMarkdownProcessor({ shikiConfig: { theme: 'github-light' } });
   const { code, metadata } = await (await processor).render(md);
-  return { html: code, headings: metadata.headings };
+  return { html: sizeDiagramImages(code), headings: metadata.headings };
 }
 
 /** short CDN cache for server-rendered pages: new posts show up within a minute */

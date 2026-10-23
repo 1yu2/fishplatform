@@ -205,3 +205,34 @@ html.st-focus .st-panes{height:calc(100vh - 150px)}
   .st-body{padding:16px; font-size:.95rem}
   .st-tool-group{border-right:0; padding-right:0}
 }
+
+/* draw.io editor overlay */
+.st-diagram-overlay{user-select:none; -webkit-user-select:none; position:fixed; inset:0; z-index:200; background:rgba(43,37,69,.45); display:flex; align-items:center; justify-content:center; padding:3vh 3vw}
+.st-diagram-frame{width:100%; height:100%; border:0; border-radius:14px; background:#fff; box-shadow:0 20px 60px rgba(43,37,69,.35)}
+.st-preview img[src*=".drawio.svg"], .st-preview img[src*=".mindmap.svg"]{cursor:pointer; outline-offset:4px}
+.st-preview img[src*=".drawio.svg"]:hover, .st-preview img[src*=".mindmap.svg"]:hover{outline:2px dashed var(--accent-soft, #b9a4ff)}
+.st-diagram-ph{display:flex; align-items:center; justify-content:center; gap:8px; min-height:140px; margin:1em 0; border:2px dashed var(--accent-soft, #b9a4ff); border-radius:14px; background:rgba(155,107,255,.06); color:var(--accent-2, #5a2fd0); font-size:.95rem; cursor:pointer}
+.st-diagram-ph:hover{background:rgba(155,107,255,.12)}
+
+/* draw.io diagrams: centred, no photo frame */
+.prose img[src*=".drawio.svg"], .prose img[src*=".mindmap.svg"], .st-preview img[src*=".drawio.svg"], .st-preview img[src*=".mindmap.svg"]{display:block; margin:1.4em auto; border:0; border-radius:0}
+
+.st-mm-box{width:100%; height:100%; display:flex; flex-direction:column; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 20px 60px rgba(43,37,69,.35)}
+.st-mm-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line); font-size:.82rem}
+.st-mm-actions{display:flex; gap:8px}
+.st-mm-canvas{flex:1; min-height:0; position:relative}
+.st-mm-opts{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.st-mm-swatch{width:22px; height:22px; padding:0; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line-2); cursor:pointer}
+.st-mm-swatch.on{box-shadow:0 0 0 2px var(--accent)}
+.st-mm-select{height:30px; padding:0 8px; font-size:.82rem; width:auto}
+.st-mm-actions{align-items:center}
+@media (max-width:900px){ .st-mm-hint{display:none} }
+.st-img-sel{position:fixed; z-index:120; border:2px solid var(--accent); border-radius:6px; pointer-events:none}
+.st-img-sel .h{position:absolute; bottom:-8px; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--accent); pointer-events:auto; cursor:ew-resize}
+.st-img-sel .h.l{left:-8px} .st-img-sel .h.r{right:-8px}
+.st-img-sel .bar{position:absolute; top:-40px; right:0; display:flex; gap:6px; align-items:center; pointer-events:auto; background:var(--bg-2); border:1px solid var(--line-2); border-radius:999px; padding:4px 6px 4px 12px; box-shadow:0 6px 20px rgba(43,37,69,.18); font-size:.78rem; white-space:nowrap}
+.st-img-sel .bar .st-btn{padding:4px 12px; font-size:.78rem}
+body.st-resizing{user-select:none; cursor:ew-resize}
+.st-mm-color{display:inline-flex; align-items:center; gap:4px; font-size:.8rem; color:var(--fg-2, inherit); cursor:pointer}
+.st-mm-color input{width:26px; height:26px; padding:0; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px var(--line-2); background:none; cursor:pointer}
+.st-mm-color input::-webkit-color-swatch-wrapper{padding:0} .st-mm-color input::-webkit-color-swatch{border:0; border-radius:50%}

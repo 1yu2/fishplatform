@@ -3,6 +3,9 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { studioClient } from '../lib/supabase';
 import type { Learning, Note, Todo } from '../lib/studio-types';
+import { diagramWidth, sizeDiagramImages } from '../lib/diagram';
+import DiagramModal from './DiagramModal';
+import MindMapModal from './MindMapModal';
 import { TagInput, errText, slugify, useToast, type ProjectRef } from './shared';
 
 const LANGS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }, { id: 'ja', label: '日本語' }] as const;
@@ -163,7 +166,10 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     return () => document.removeEventListener('mousedown', close);
   }, [menu]);
 
-  const html = useMemo(() => DOMPurify.sanitize(marked.parse(n.body || '', { async: false, gfm: true, breaks: false }) as string), [n.body]);
+  const html = useMemo(() => sizeDiagramImages(DOMPurify.sanitize(marked.parse(n.body || '', { async: false, gfm: true, breaks: false }) as string)
+    // a diagram that has been inserted but not drawn yet is shown as a click-to-edit box
+    .replace(/<img[^>]*src="#diagram-([a-z0-9]+)"[^>]*>/g, '<div class="st-diagram-ph" data-diagram="$1">◈ 图表 · 点击这里开始绘制</div>')
+    .replace(/<img[^>]*src="#mindmap-([a-z0-9]+)"[^>]*>/g, '<div class="st-diagram-ph" data-kind="mindmap" data-diagram="$1">✺ 思维导图 · 点击这里开始绘制</div>')), [n.body]);
   const stats = useMemo(() => {
     const cjk = (n.body.match(/[぀-ヿ㐀-鿿]/g) || []).length;
     const words = n.body.replace(/[぀-ヿ㐀-鿿]/g, ' ').replace(/[#*_`>\-\[\]()!|]/g, ' ').split(/\s+/).filter(Boolean).length;
@@ -258,6 +264,13 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     edit({ body: el.value.slice(0, i) + to + el.value.slice(i + from.length) });
     if (document.activeElement === el) requestAnimationFrame(() => el.setSelectionRange(shift(s), shift(e)));
   }
+  async function uploadFile(f: File): Promise<string | null> {
+    const ext = f.name.endsWith('.drawio.svg') ? 'drawio.svg' : f.name.endsWith('.mindmap.svg') ? 'mindmap.svg' : (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+    const path = `notes/${note.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await sb.storage.from('studio').upload(path, f, { contentType: f.type, cacheControl: '31536000' });
+    if (error) { toast(errText(error)); return null; }
+    return sb.storage.from('studio').getPublicUrl(path).data.publicUrl;
+  }
   async function upload(files: File[]) {
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (!images.length) return;
@@ -267,14 +280,101 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
     insertBlock(jobs.map((j) => j.ph).join('\n\n'));
     for (const { f, ph } of jobs) {
       if (f.size > 8 * 1024 * 1024) { toast(`${f.name} 太大了(上限 8MB)`); swapText(ph, ''); continue; }
-      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
-      const path = `notes/${note.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await sb.storage.from('studio').upload(path, f, { contentType: f.type, cacheControl: '31536000' });
-      if (error) { toast(errText(error)); swapText(ph, ''); continue; }
-      const { data } = sb.storage.from('studio').getPublicUrl(path);
-      swapText(ph, `![${f.name.replace(/\.[^.]+$/, '')}](${data.publicUrl})`);
+      const url = await uploadFile(f);
+      swapText(ph, url ? `![${f.name.replace(/(\.drawio|\.mindmap)?\.[^.]+$/, '')}](${url})` : '');
     }
     setUploading(false);
+  }
+
+  /* ---------- diagrams: draw.io (.drawio.svg) and mind maps (.mindmap.svg) are saved as SVG images that carry their
+     own source; click one in the preview to edit it again. A not-yet-drawn one is a `#diagram-xxx` / `#mindmap-xxx` placeholder. ---------- */
+  /* selected diagram image: a frame with two drag handles (resize with the mouse) and an edit button */
+  const [sel, setSel] = useState<{ src: string; kind: 'drawio' | 'mindmap' } | null>(null);
+  const [rect, setRect] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
+  const dragging = useRef(false);
+  const findImg = (src: string) => [...(pv.current?.querySelectorAll('img') ?? [])].find((i) => i.getAttribute('src') === src) as HTMLImageElement | undefined;
+  function measure() {
+    const img = sel && findImg(sel.src), box = pv.current?.getBoundingClientRect();
+    if (!img || !box) return setRect(null);
+    const r = img.getBoundingClientRect();
+    if (r.bottom < box.top || r.top > box.bottom) return setRect(null); // scrolled out of the preview
+    setRect({ l: r.left, t: r.top, w: r.width, h: r.height });
+  }
+  useLayoutEffect(() => { measure(); const id = requestAnimationFrame(measure); return () => cancelAnimationFrame(id); }, [sel, html, view]);
+  useEffect(() => {
+    if (!sel) return;
+    const on = () => { if (!dragging.current) measure(); };
+    const down = (e: MouseEvent) => { const t = e.target as HTMLElement; if (!t.closest?.('.st-img-sel') && t.tagName !== 'IMG') setSel(null); };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSel(null);
+    window.addEventListener('resize', on); pv.current?.addEventListener('scroll', on);
+    document.addEventListener('mousedown', down); document.addEventListener('keydown', esc);
+    return () => { window.removeEventListener('resize', on); pv.current?.removeEventListener('scroll', on); document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc); };
+  }, [sel]);
+  const [diagram, setDiagram] = useState<{ kind: 'drawio' | 'mindmap'; data: string; oldUrl?: string } | null>(null);
+  async function saveDiagram(svg: Blob, kind: 'drawio' | 'mindmap', oldUrl?: string) {
+    const file = new File([svg], kind === 'drawio' ? '图表.drawio.svg' : '导图.mindmap.svg', { type: 'image/svg+xml' });
+    if (!oldUrl) return upload([file]);
+    setUploading(true);
+    const url = await uploadFile(file);
+    setUploading(false);
+    const size = oldUrl.startsWith('#') ? '' : (oldUrl.match(/#w=\d+$/)?.[0] ?? ''); // keep the chosen size
+    if (url) edit({ body: (ta.current?.value ?? n.body).split(oldUrl).join(url + size) });
+  }
+  function addDiagram(kind: 'drawio' | 'mindmap') {
+    setMenu('');
+    if (view !== 'split') setView('split');
+    const id = Math.random().toString(36).slice(2, 8);
+    setTimeout(() => ta.current && insertBlock(kind === 'drawio' ? `![图表](#diagram-${id})` : `![导图](#mindmap-${id})`), 50);
+  }
+  async function onPreviewClick(e: MouseEvent) {
+    const ph = (e.target as HTMLElement).closest?.('.st-diagram-ph') as HTMLElement | null;
+    if (ph) {
+      const id = ph.dataset.diagram!;
+      return setDiagram(ph.dataset.kind === 'mindmap' ? { kind: 'mindmap', data: '', oldUrl: `#mindmap-${id}` } : { kind: 'drawio', data: '', oldUrl: `#diagram-${id}` });
+    }
+    const img = e.target as HTMLImageElement;
+    if (img.tagName !== 'IMG') return;
+    const src = img.getAttribute('src') ?? '';
+    const kind = src.includes('.drawio.svg') ? 'drawio' : src.includes('.mindmap.svg') ? 'mindmap' : null;
+    if (kind) setSel({ src, kind });
+  }
+  async function editImage(m: { src: string; kind: 'drawio' | 'mindmap' }) {
+    setSel(null);
+    try {
+      const res = await fetch(m.src);
+      if (m.kind === 'mindmap') {
+        const b64 = (await res.text()).match(/<metadata id="mindmap-data">([^<]*)<\/metadata>/)?.[1];
+        return setDiagram({ kind: 'mindmap', data: b64 ? decodeURIComponent(escape(atob(b64))) : '', oldUrl: m.src });
+      }
+      const blob = await res.blob();
+      const data = await new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(r.result as string); r.readAsDataURL(blob); });
+      setDiagram({ kind: 'drawio', data, oldUrl: m.src });
+    } catch { toast('读取图表失败'); }
+  }
+  /** the width lives in the image URL (`…svg#w=63`, % of the column) so it survives re-editing; null = original size */
+  function resizeImage(src: string, pct: number | null) {
+    const next = pct ? `${src.split('#')[0]}#w=${pct}` : src.split('#')[0];
+    setSel((m) => m && { ...m, src: next });
+    edit({ body: (ta.current?.value ?? n.body).split(src).join(next) });
+  }
+  function startResize(e: MouseEvent, side: 1 | -1) {
+    e.preventDefault(); e.stopPropagation();
+    const img = sel && findImg(sel.src);
+    if (!sel || !img?.parentElement) return;
+    const src = sel.src, parentW = img.parentElement.getBoundingClientRect().width;
+    const startW = img.getBoundingClientRect().width, x0 = e.clientX;
+    let w = startW;
+    dragging.current = true; document.body.classList.add('st-resizing');
+    const move = (ev: MouseEvent) => {
+      w = Math.max(60, Math.min(parentW, startW + 2 * side * (ev.clientX - x0))); // centred, so both edges move
+      img.style.width = `${w}px`; measure();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up);
+      dragging.current = false; document.body.classList.remove('st-resizing');
+      resizeImage(src, Math.max(5, Math.min(100, Math.round((w / parentW) * 100))));
+    };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
   const onPaste = (e: ClipboardEvent) => {
     const files = [...(e.clipboardData?.files ?? [])];
@@ -362,6 +462,8 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
               <button type="button" class={menu ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu(menu ? '' : 'insert')}>插入 ▾</button>
               {menu === 'insert' && (
                 <div class="st-menu" role="menu">
+                  <button onClick={() => addDiagram('mindmap')}>✺ 思维导图</button>
+                  <button onClick={() => addDiagram('drawio')}>◈ 流程图 / 架构图…</button>
                   <button onClick={() => insertBlock('| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |', 2)}>▦ 表格</button>
                   <button onClick={() => setMenu('code')}>{'{ }'} 代码块 ›</button>
                   <button onClick={() => insertBlock('---')}>— 分割线</button>
@@ -418,7 +520,7 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
               onKeyDown={onKeyDown} onPaste={onPaste} onDrop={onDrop} onScroll={syncScroll} />
           )}
           {view !== 'write' && (
-            <article ref={pv} class="st-preview prose" onScroll={(e) => { pvTop.current = (e.currentTarget as HTMLElement).scrollTop; }} dangerouslySetInnerHTML={{ __html: html || '<p class="st-muted">预览会显示在这里</p>' }} />
+            <article ref={pv} class="st-preview prose" onClick={onPreviewClick} onScroll={(e) => { pvTop.current = (e.currentTarget as HTMLElement).scrollTop; }} dangerouslySetInnerHTML={{ __html: html || '<p class="st-muted">预览会显示在这里</p>' }} />
           )}
         </div>
 
@@ -475,6 +577,19 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           </div>
         </aside>
       )}
+      {sel && rect && (
+        <div class="st-img-sel" style={{ left: rect.l, top: rect.t, width: rect.w, height: rect.h }}>
+          <div class="bar" style={rect.t < 52 ? { top: 8, right: 8 } : undefined}>
+            <span class="st-muted">拖动两侧圆点调整大小</span>
+            {diagramWidth(sel.src) && <button class="st-btn" onClick={() => resizeImage(sel.src, null)}>还原</button>}
+            <button class="st-btn primary" onClick={() => editImage(sel)}>编辑</button>
+          </div>
+          <div class="h l" onMouseDown={(e) => startResize(e, -1)} />
+          <div class="h r" onMouseDown={(e) => startResize(e, 1)} />
+        </div>
+      )}
+      {diagram?.kind === 'drawio' && <DiagramModal xml={diagram.data} onSave={(svg) => saveDiagram(svg, 'drawio', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
+      {diagram?.kind === 'mindmap' && <MindMapModal data={diagram.data} onSave={(svg) => saveDiagram(svg, 'mindmap', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
     </div>
   );
 }
