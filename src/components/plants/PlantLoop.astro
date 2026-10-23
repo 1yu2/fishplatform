@@ -85,8 +85,13 @@
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
         // playback can be refused (background tab, iOS low-power mode): show the still and retry later
-        video.playbackRate = 0.6;   // slower, calmer sway
-        video.addEventListener('loadedmetadata', () => { video.playbackRate = 0.6; gl.uniform2f(gl.getUniformLocation(prog, 'px'), 1 / video.videoWidth, 1 / video.videoHeight); });
+        // slower, calmer sway. Set the *default* rate too: loading resets playbackRate to it, so setting
+        // playbackRate alone can silently snap back to 1x; re-apply on every play as well.
+        const RATE = 0.4;
+        const slow = () => { video.defaultPlaybackRate = RATE; video.playbackRate = RATE; };
+        slow();
+        video.addEventListener('play', slow);
+        video.addEventListener('loadedmetadata', () => { slow(); gl.uniform2f(gl.getUniformLocation(prog, 'px'), 1 / video.videoWidth, 1 / video.videoHeight); });
         gl.uniform2f(gl.getUniformLocation(prog, 'px'), 1 / 616, 1 / 480);
         const play = () => video.play().then(() => root.classList.remove('still'), still);
         play();
