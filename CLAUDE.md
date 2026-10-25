@@ -14,7 +14,7 @@
 - **Astro 5.18.2**(本机 Node 22.19;Astro 7 需要 Node ≥ 22.22,升级 Node 后再考虑升 Astro)。
 - 页面路由 `src/pages/[...locale]/…`:同一份模板生成 `/`(英文)、`/ja/`、`/zh/`;`localeStaticPaths()` 见 `src/i18n/utils.ts`。
 - 界面文案全部在 `src/i18n/ui.ts`(en / ja / zh 三份字典),页面里用 `t('key')`。**新增文案要三种语言一起加。**
-- `src/components/Home.astro` / `About.astro`:原 index.html / about.html 搬过来的,CSS(`<style is:global>`)和动画脚本(`<script is:inline>`)保持原样,只把文字换成 `t()`。首页 intro 的防闪 boot 脚本在 `[...locale]/index.astro` 的 head slot 里。
+- `src/components/Home.astro` / `About.astro`:页面独有的布局、动画脚本和 WebGL 样式留在组件内;颜色、字体、导航、按钮等公共视觉基础由 `Base.astro` 加载 `src/styles/site.css`。首页 intro 的防闪 boot 脚本在 `[...locale]/index.astro` 的 head slot 里。
 - `src/components/Nav.astro`:共享导航 + 语言切换(记住选择,`/` 会把选过 ja/zh 的访客送回对应语言)。
 - 博客:`src/content.config.ts`(schema)、`src/content/blog/<slug>/index.md`、列表 `[...locale]/blog/index.astro`、文章 `[...locale]/blog/[slug].astro`;内容页公共样式 `src/styles/site.css`。
 - 项目:`src/content/projects/<slug>/index.md`(status building/shipped/paused、stack、repo/demo、cover、featured),工具函数 `src/lib/projects.ts`;列表 `[...locale]/projects/index.astro`(玻璃卡片 + 状态筛选,同一 `translationKey` 只出一张卡、优先当前语言),详情 `[...locale]/projects/[slug].astro`。
@@ -29,24 +29,25 @@
   - 博客列表可切换「按时间 / 按标签 / 按项目」三种分组(`blog/index.astro`,标签筛选对三种视图都生效,选择记在 localStorage);Studio 笔记关联的项目用于按项目分组。文章页目录可显示/隐藏(记在 localStorage `fp-toc`,窄屏默认收起)。Studio 写作页工具栏有「目录」按钮,显示文档大纲、点击跳转。
   - 博客列表和文章页 `[...locale]/blog/*` 改为**按请求渲染**(`prerender = false`,CDN 缓存 60s):仓库里的 Markdown 文章 + Studio 已发布笔记合并显示(`src/lib/public-data.ts` 的 `blogEntries()`;笔记用 `@astrojs/markdown-remark` 渲染,和文件文章同一套高亮)。文章页底部「相关」列出笔记关联的学习条目 / 项目 / 公开待办。
   - `/learning`(公开的学习清单,按 在学/想学/学完 分组)和 `/learning/<id>`(笔记、为它写过的文章、相关待办)也是按请求渲染。
-  - 首页 004「现在」区块 + 博客侧栏:`src/components/now/NowStrip.astro`,浏览器直接请求 Supabase REST(只拿公开行):公开待办 + 在学的条目,按优先级排,完成的待办 7 天后自动消失(`KEEP_DONE_DAYS`)。
+  - 首页 006「现在」区块 + 博客侧栏:`src/components/now/NowStrip.astro`,浏览器直接请求 Supabase REST(只拿公开行):公开待办 + 在学的条目,按优先级排,完成的待办 7 天后自动消失(`KEEP_DONE_DAYS`)。
   - 首页 002 工作室区块的三个数字是实时的(文章数 = 仓库文章 + 已发布笔记、在学仓库数、已完成公开待办数);003 服务区三张卡片(保留 3D 图形)分别链接 写作 / 学习清单 / 项目。
+  - 首页 004 精选项目 / 005 最新文章在构建时从内容集合各取前两条;Studio 新发布笔记仍即时进入按请求渲染的博客列表,首页预览随下次部署更新。007 联系区与 About 联系区使用 `SITE.github`。
   - 404 页按请求渲染(`Astro.rewrite('/404')` 要求),状态码 404。
 - 已移除:Garden(花园)和 `/admin`(Sveltia CMS);`/now`、`/garden`、`/admin` 旧链接在 `vercel.json` 里重定向到 `/learning` / `/studio`。
 - 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
-- Nav 8 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services 和 Contact(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ header 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
+- Nav 7 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ 悬浮 `.nav-inner` 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
-- Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体。
-- 本地:`npm run dev`(开发)/ `npm run build && npm run preview`(看最终产物,端口 4321)。
+- Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体;首页第二行标题用系统 Georgia / 宋体类衬线斜体。
+- 本地:`npm run dev`(开发,端口 4321)/ `npm run build`(构建)。当前 `@astrojs/vercel` 适配器不支持 `astro preview`;静态产物在 `dist/client`,动态路由用开发服务器或 Vercel 分支预览验证。
 
 ## 设计方向
-- 主题:**浅紫色 / 薰衣草白**(明亮通透),灵感来自一张 "Where Money Grows" 图的上半部分。
-- 背景渐变:`#f6f5fd → #eceaf7 → #ddd9ef`(顶部接近白,往下丁香紫)。
-- 配色 token(Home/About 组件和 `src/styles/site.css` 的 `:root` 各有一份,改色要同步):
+- 主题:**浅紫色 / 薰衣草白**(明亮通透),首页为杂志式双行大标题 + 悬浮胶囊导航 + 丁香紫服务面板 + 不对称项目画报;保留粒子球和花开动画。
+- 背景渐变:`#faf9fe → #f1eff9 → #e5e1f1`(顶部接近白,往下丁香紫)。
+- 配色、字体、圆角、阴影等公共 token 集中在 `src/styles/site.css` 的 `:root`;Home/About 只保留动画或页面级覆盖:
   - `--bg:#e9e8f5` / `--bg-2:#fff`(卡片)/ `--fg:#2b2545`(深紫灰正文)
-  - `--accent:#7c4dff`(主紫)/ `--accent-2:#5a2fd0`(深紫,hover/标签)
+  - `--accent:#7445e8`(主紫)/ `--accent-2:#5830bd`(深紫,hover/标签)
   - `--accent-soft:#b9a4ff` / `--glow:#9b6bff`
-- 单主题(committed light),`color-scheme: light`。标题用紫色渐变文字(background-clip:text)。
+- 单主题(committed light),`color-scheme: light`。首页主标题直接用深色 + 紫色衬线斜体,其他页面渐变标题使用 `--title-gradient`。
 - ⚠️ 浅背景下粒子用的是 **NormalBlending**(不是 AdditiveBlending)——additive 在浅色上会被加白糊掉。改渲染时记住这点。
 
 ## WebGL 粒子球结构(index.html 底部 `<script>`)
@@ -80,10 +81,11 @@
 - 360 宽的源视频放大后会略软,别再放得更大;有更高清原片可直接替换 mp4(背景色标需重新测)。
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
-## 植物循环动画(博客 / 学习页左下角)
-- 源:`ref3.mov`(橙色羽毛状植物 + 紫色缎带叶 + 卷须,灰色渐变底)。**离线**处理(Python/OpenCV):去掉前 100 帧播放器画面和左右黑边;用低饱和像素建背景板,按颜色距离 + 饱和度抠出 alpha;调色:暖色羽穗 → 紫/丁香/近白,冷色缎带 → 深靛紫;60→30fps;**首尾 1.5s 交叉淡化烘进视频**,所以 `<video loop>` 无缝。
-- 输出 `public/assets/plants.mp4`:左半彩色、右半 alpha 并排(616×480,H.264,3.4MB,avconvert `PresetAppleM4ViPod`,输出须用 .m4v 再改名);`plants-still.png` 是静帧回退。
-- 组件 `src/components/plants/PlantLoop.astro`:固定在视口左下(贴底边、高 min(74vh,680px),不做底部渐隐,用户不要模糊;0.4 倍速播放(同时设 defaultPlaybackRate,否则加载时会被重置回 1x);shader 里对颜色做 unsharp mask、alpha 用 smoothstep(0.22,0.78) 收紧边缘来减轻放大后的糊)、内容后面(z-index 1,不透明度 .62),WebGL 小 shader 合成两半;reduced-motion / 无 WebGL / 播放被拒显示静帧;≤760px 隐藏。用在 `blog/index`、`learning/index`、`learning/[id]`。
+## 环境循环动画(博客页头 / 学习页左下角)
+- 博客列表使用 `ref4.mov` 的原始画面(彩色鱼群、水面、阳光与深灰环境),只裁掉源左侧 4 像素黑边(成品 362×632),不抠主体、不做 WebGL 拉伸。`avconvert` 转为 Web 播放资源 `public/assets/blog-fish.mp4`(H.264),`blog-fish-poster.jpg` 是原色静帧;原始 `ref4.mov` 保留在仓库根目录。
+- 参考 The Sea We Breathe / And we were 的一体场景:博客页头为 100vw 全宽水下世界,标题直接叠在场景里,不再是右侧视频卡。一个隐藏 `<video>` 驱动单个 `<canvas>`,原视频始终按高度完整绘制并保持比例;宽屏左侧使用纵向明暗底色,只在实际画面左缘 20% 内柔化衔接,不延展墙面/地面(会产生假拐角和透视断层),窄屏居中裁切。桌面页头底部 14% 过渡到文章区底色;淡紫渐变保证文字可读,手机标题位于底部。`requestVideoFrameCallback` 逐帧绘制,`muted autoplay loop playsinline` 循环播放,poster 兜底,reduced-motion 暂停视频并保留当前帧。
+- 学习页继续使用 `ref3.mov` 的植物动画:抠图后调成紫/丁香色,60→30fps,首尾 1.5s 交叉淡化;资源 `plants.mp4`(616×480,H.264)与 `plants-still.png`。
+- 学习页组件 `src/components/plants/PlantLoop.astro`:固定在视口左下(贴底边、高 min(74vh,680px)),0.4 倍速、不透明度 .62;同时设 defaultPlaybackRate,避免加载时重置速度;shader 合成颜色与 alpha 并轻微锐化;reduced-motion / 无 WebGL / 播放被拒显示静帧;≤760px 隐藏。
 
 ## 路线图:内容站(已和用户确认;第 ① 期已完成:Astro + 三语 + 博客;第 ② 期 projects 已做;待办 / 学习清单 / 写作 由 Studio + Supabase 实现,见上)
 - **框架:迁到 Astro**(Vercel Framework 改为 Astro,有构建步骤)。现有首页/About 页及其动画原样搬入,不改视觉。迁移后「单文件 index.html」约定作废。

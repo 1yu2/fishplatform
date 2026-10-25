@@ -135,10 +135,10 @@ const attrs = (l: (typeof links)[number]) => ({
   .lang-menu li a:hover{background:var(--menu-hover); color:var(--accent-2)}
   .lang-menu li a[aria-current="true"]{color:var(--accent-2); font-weight:600}
   .lang-menu li a[aria-current="true"]::after{content:"✓"; float:right; color:var(--accent)}
-  nav.links a[aria-current="page"]{color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:6px}
+  nav.links a[aria-current="page"]{color:var(--fg)}
+  nav.links a[aria-current="page"]::after{content:""; position:absolute; left:50%; bottom:-8px; width:4px; height:4px; border-radius:50%; background:var(--accent); transform:translateX(-50%)}
   nav.links a, .lang-menu summary{white-space:nowrap}
-  /* eight links don't fit beside the brand and menus on mid-width screens: drop the homepage anchors
-     and Contact (the CTA button goes to the same place) */
+  /* mid-width screens drop the two homepage anchors before collapsing to the mobile menu */
   @media(max-width:1180px){ nav.links{gap:20px} nav.links a.extra{display:none} }
 
   /* ---------- mobile menu (≤860px, where the row of links is hidden) ---------- */
@@ -162,10 +162,10 @@ const attrs = (l: (typeof links)[number]) => ({
 
   /* keep the bar (brand, language, close button) above the panel's dimming shadow */
   header.nav .nav-inner{position:relative; z-index:1}
-  /* the header has backdrop-filter, so the panel is positioned against it rather than the viewport */
+  /* the floating bar has backdrop-filter, so the panel stays absolute against the header */
   .nav-menu{
-    position:absolute; top:100%; left:max(12px, env(safe-area-inset-left,0px)); right:max(12px, env(safe-area-inset-right,0px));
-    max-height:calc(100dvh - 90px); overflow-y:auto; overscroll-behavior:contain;
+    position:absolute; top:calc(100% + 8px); left:max(16px, env(safe-area-inset-left,0px)); right:max(16px, env(safe-area-inset-right,0px)); pointer-events:auto;
+    max-height:calc(100dvh - 104px); overflow-y:auto; overscroll-behavior:contain;
     background:var(--card-1); background:var(--menu-bg); border:1px solid var(--line-2); border-radius:20px; padding:8px;
     box-shadow:0 24px 50px -24px rgba(60,40,140,.4), 0 0 0 100vmax rgba(43,37,69,.16);
   }

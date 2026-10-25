@@ -1,5 +1,5 @@
 ---
-// Decorative plant loop for the blog and learning pages: lilac plumes and violet ribbons growing up
+// Decorative plant loop for the learning pages: lilac plumes and violet ribbons growing up
 // from the lower-left corner (the homepage sphere and About peony live top-right).
 // assets/plants.mp4 is pre-processed from ref3.mov (see CLAUDE.md): keyed and recoloured offline,
 // colour on the left half and alpha on the right half, with a seamless loop baked in, so the page
@@ -14,8 +14,8 @@
 <style is:global>
   .plant-loop{
     position:fixed; left:max(40px, calc((100vw - 1320px) / 2 + 40px)); bottom:0; z-index:1; pointer-events:none;
-    height:min(74vh, 680px); aspect-ratio:308/480;   /* tall: the plants grow up from the bottom edge */
-    opacity:.62;                       /* sits behind the content, so text stays readable over it */
+    height:min(74vh, 680px); aspect-ratio:308/480;
+    opacity:.62;
     transition:opacity .6s ease;
   }
   .plant-loop canvas, .plant-loop img{position:absolute; inset:0; width:100%; height:100%; display:block}
@@ -23,7 +23,7 @@
   .plant-loop.still img{opacity:1}
   .plant-loop.still canvas{display:none}
   .plant-src{position:absolute; width:2px; height:2px; opacity:.01; left:0; top:0}
-  @media(max-width:760px){ .plant-loop{display:none} }   /* no free corner on phones */
+  @media(max-width:760px){ .plant-loop{display:none} }
 </style>
 
 <script>
@@ -38,9 +38,7 @@
     if (!gl) still();
     else {
       const VS = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.0,1.0); }';
-      // colour = left half, alpha = right half; feather the sides so compression bleed at the seam never shows
-      // colour = left half, alpha = right half. The source is small, so sharpen: an unsharp mask on the
-      // colour and a steeper alpha curve for crisp edges. Sides are feathered so seam bleed never shows.
+      // Each source carries colour on the left and alpha on the right; sharpen the small source and hide seam bleed.
       const FS = [
         'precision mediump float; varying vec2 uv; uniform sampler2D t; uniform vec2 px;',
         'vec3 colAt(vec2 p){ return texture2D(t, vec2(clamp(p.x, 0.0, 0.5 - px.x), p.y)).rgb; }',
@@ -84,9 +82,7 @@
           gl.clear(gl.COLOR_BUFFER_BIT);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
-        // playback can be refused (background tab, iOS low-power mode): show the still and retry later
-        // slower, calmer sway. Set the *default* rate too: loading resets playbackRate to it, so setting
-        // playbackRate alone can silently snap back to 1x; re-apply on every play as well.
+        // Playback can be refused; show the still and retry. Re-apply the rate because loading resets it.
         const RATE = 0.4;
         const slow = () => { video.defaultPlaybackRate = RATE; video.playbackRate = RATE; };
         slow();

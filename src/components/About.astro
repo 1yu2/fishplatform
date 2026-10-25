@@ -70,6 +70,11 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
   <section id="contact" class="foot-cta" aria-label="Contact">
     <div class="eyebrow reveal">{t('about.contact.eyebrow')}</div>
     <h2 class="reveal">{t('about.contact.title')}</h2>
+    <p class="contact-lead reveal">{t('contact.lead')}</p>
+    <div class="cta-group contact-actions reveal">
+      <a class="btn btn-solid" href={SITE.github} target="_blank" rel="noopener noreferrer">{t('contact.github')}<span aria-hidden="true">↗</span></a>
+      <a class="btn btn-ghost" href={localePath(lang, '/projects/')}>{t('contact.projects')}</a>
+    </div>
     <footer class="end">
       <span>© 2026 {SITE.name}</span>
       <a href={localePath(lang, '/')}>{t('about.back')}</a>
@@ -86,19 +91,6 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
   function tok(name, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
   function rgb(hex){ hex = hex.replace('#',''); return [parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255]; }
   function smooth(e0, e1, x){ var k = Math.min(Math.max((x-e0)/(e1-e0),0),1); return k*k*(3-2*k); }
-
-  /* ---------- copy email ---------- */
-  var copyBtn = document.getElementById('copy');
-  if(copyBtn) copyBtn.addEventListener('click', function(){
-    var txt = document.getElementById('mail').textContent;
-    function done(){ copyBtn.textContent = copyBtn.dataset.copied; setTimeout(function(){ copyBtn.textContent = copyBtn.dataset.copy; }, 1600); }
-    function select(){
-      var r = document.createRange(); r.selectNode(document.getElementById('mail'));
-      var s = getSelection(); s.removeAllRanges(); s.addRange(r); done();
-    }
-    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(select); }
-    else select();
-  });
 
   /* ---------- reveal on scroll ---------- */
   var revs = [].slice.call(document.querySelectorAll('.reveal'));
@@ -328,111 +320,17 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
 </script>
 
 <style is:global>
-  /* Same lavender system as the homepage. The bloom clip's dark backdrop is keyed out live in WebGL
-     and the flower is graded into the palette (violet bud -> lilac-white petals, gold centre kept),
-     so it floats on the page with no frame. */
   :root{
-    --bg:#e9e8f5;
-    --bg-grad:linear-gradient(180deg,#f6f5fd 0%, #eceaf7 42%, #ddd9ef 100%);
-    --bg-2:#ffffff;
-    --card-1:#efecfa;
-    --card-2:#f6f4fd;
-    --fg:#2b2545;
-    --fg-strong:#1f1a38;
-    --muted:#6a6385;
-    --faint:#9690ab;
-    --line:rgba(96,66,170,.16);
-    --line-2:rgba(96,66,170,.30);
-    --accent:#7c4dff;
-    --accent-2:#5a2fd0;
-    --accent-soft:#b9a4ff;
-    --glow:#9b6bff;
-    --ink:#5b47b0;         /* bloom grade: darkest petal tone (the bud) */
-    --ink-2:#b3a2ec;       /* bloom grade: mid petal tone */
-    --petal:#fffcff;       /* bloom grade: brightest petal tone */
-    --pollen:#d99a2b;      /* stamen gold, deep enough to read on lavender */
-    color-scheme: light;
-    --fs-display: clamp(2.5rem, 7vw, 5.6rem);
-    --fs-h2: clamp(1.9rem, 4.6vw, 3.4rem);
-    --fs-lead: clamp(1rem, 1.6vw, 1.15rem);
+    --ink:#5b47b0;
+    --ink-2:#b3a2ec;
+    --petal:#fffcff;
+    --fs-display:clamp(2.5rem, 7vw, 5.6rem);
   }
-  *{box-sizing:border-box}
-  html,body{margin:0}
-  body{
-    background:var(--bg);
-    background-image:var(--bg-grad);
-    background-attachment:fixed;
-    color:var(--fg);
-    font-family:"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-    font-size:16px; line-height:1.6;
-    -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
-  }
-  /* ambient violet wash, as on the homepage */
-  body::after{
-    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-    background:
-      radial-gradient(48% 52% at 72% 46%, rgba(124,77,255,.13), transparent 70%),
-      radial-gradient(42% 40% at 12% 92%, rgba(124,77,255,.07), transparent 70%);
-  }
-  .wrap{
-    position:relative; z-index:2; max-width:1200px; margin:0 auto;
-    padding-left:max(22px, env(safe-area-inset-left,0px));
-    padding-right:max(22px, env(safe-area-inset-right,0px));
-  }
-
-  /* ---------- nav (identical to the homepage) ---------- */
-  header.nav{
-    position:fixed; left:0; right:0; top:0; z-index:20;
-    padding-top:env(safe-area-inset-top,0px);
-    backdrop-filter:blur(10px);
-    background:linear-gradient(to bottom, rgba(246,245,253,.82), rgba(246,245,253,0));
-  }
-  .nav-inner{
-    max-width:1200px; margin:0 auto;
-    display:flex; align-items:center; justify-content:space-between; gap:18px;
-    padding:16px max(22px, env(safe-area-inset-right,0px)) 16px max(22px, env(safe-area-inset-left,0px));
-  }
-  .brand{
-    font-family:"Archivo",sans-serif; font-weight:800; letter-spacing:.22em;
-    font-size:.95rem; text-transform:uppercase; color:var(--fg);
-    display:flex; align-items:center; gap:9px; text-decoration:none;
-  }
-  .brand .dot{width:9px; height:9px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #c6adff, var(--accent));
-    box-shadow:0 0 12px 1px rgba(124,77,255,.55)}
-  nav.links{display:flex; gap:26px; font-size:.82rem; letter-spacing:.02em}
-  nav.links a{color:var(--muted); text-decoration:none; transition:color .2s}
-  nav.links a:hover, nav.links a[aria-current="page"]{color:var(--fg)}
-  nav.links a[aria-current="page"]{text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:6px}
-  .nav-cta{
-    font-family:"Space Mono",monospace; font-size:.75rem; letter-spacing:.04em;
-    color:var(--fg); text-decoration:none; border:1px solid var(--line-2);
-    padding:9px 16px; border-radius:999px; transition:.2s; white-space:nowrap;
-  }
-  .nav-cta:hover{background:var(--accent); border-color:var(--accent); color:#fff}
-  @media(max-width:860px){ nav.links{display:none} }
-
-  /* ---------- shared ---------- */
   section{position:relative; z-index:2}
-  .eyebrow{
-    font-family:"Space Mono",monospace; font-size:.74rem; letter-spacing:.18em;
-    text-transform:uppercase; color:var(--accent-2); display:flex; gap:10px; align-items:center;
-  }
-  .eyebrow::before{content:""; width:26px; height:1px; background:var(--line-2)}
   h2{
-    font-family:"Archivo",sans-serif; font-weight:800; text-transform:uppercase;
+    font-family:var(--font-display); font-weight:800; text-transform:uppercase;
     font-size:var(--fs-h2); line-height:1.02; margin:.45em 0 0; text-wrap:balance; color:var(--fg-strong);
   }
-  .btn{
-    font-family:"Hanken Grotesk",sans-serif; font-weight:600; font-size:.95rem;
-    padding:13px 24px; border-radius:999px; text-decoration:none; cursor:pointer;
-    border:1px solid transparent; transition:.22s; display:inline-flex; align-items:center; gap:9px;
-  }
-  .btn-solid{background:var(--accent); color:#fff}
-  .btn-solid:hover{background:var(--accent-2); box-shadow:0 10px 30px rgba(124,77,255,.35)}
-  .btn-ghost{border-color:var(--line-2); color:var(--fg)}
-  .btn-ghost:hover{border-color:var(--accent); background:rgba(155,107,255,.08)}
 
   /* ---------- the flower: no frame, floats on the page ----------
      Desktop: fixed on the right like the homepage sphere; lifts and fades as the story arrives.
@@ -459,15 +357,13 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
   }
   .hero .copy{max-width:min(560px, 52%)}
   .hero h1{
-    font-family:"Archivo",sans-serif; font-weight:800; line-height:.98;
-    font-size:var(--fs-display); letter-spacing:-.01em; margin:.45em 0 0;
+    font-family:var(--font-display); font-weight:800; line-height:.98;
+    font-size:var(--fs-display); letter-spacing:-.03em; margin:.45em 0 0;
     text-transform:uppercase; text-wrap:balance; max-width:12ch;
-    color:var(--fg-strong);
-    background:linear-gradient(118deg,#352677 0%, #7c4dff 55%, #9b6bff 100%);
+    color:var(--fg-strong); background:var(--title-gradient);
     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
   }
   .hero .lead{color:var(--muted); font-size:var(--fs-lead); max-width:44ch; margin:26px 0 0}
-  .cta-group{display:flex; gap:12px; flex-wrap:wrap; margin-top:32px}
 
   @media(max-width:860px){
     .flower{
@@ -508,23 +404,18 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
   .chips{display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; list-style:none}
   .chips li{font-size:.88rem; color:var(--fg); background:var(--bg-2); border:1px solid var(--line); border-radius:999px; padding:6px 13px}
 
-  /* ---------- contact ---------- */
-  .foot-cta{padding:100px 0 40px; text-align:center}
+  .foot-cta{margin-top:70px; padding:84px 30px 26px; text-align:center; background:rgba(255,255,255,.42); border:1px solid var(--line); border-radius:var(--radius-lg)}
   .foot-cta .eyebrow{justify-content:center}
-  .foot-cta h2{font-size:clamp(2rem,6vw,4.4rem); margin-top:.5em;
-    background:linear-gradient(118deg,#352677, #7c4dff 55%, #9b6bff);
-    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
-  .mail{margin-top:26px; display:inline-flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center}
-  .mail code{font-family:"Space Mono",monospace; background:var(--bg-2); border:1px solid var(--line); padding:11px 16px; border-radius:999px; color:var(--fg); font-size:.92rem; user-select:all}
-  .copy-btn{font-family:"Space Mono",monospace; font-size:.78rem; color:var(--muted); background:none; border:1px solid var(--line-2); padding:11px 14px; border-radius:999px; cursor:pointer; transition:.2s}
-  .copy-btn:hover{color:var(--fg); border-color:var(--accent)}
-  footer.end{border-top:1px solid var(--line); margin-top:70px; padding:26px 0; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; color:var(--faint); font-size:.8rem; font-family:"Space Mono",monospace}
+  .foot-cta h2{font-size:clamp(2rem,5.5vw,4.2rem); line-height:1.04; letter-spacing:-.035em; margin-top:.35em; background:var(--title-gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+  .contact-lead{max-width:48ch; margin:22px auto 0; color:var(--muted)}
+  .contact-actions{justify-content:center; margin-top:28px}
+  footer.end{border-top:1px solid var(--line); margin-top:64px; padding:24px 0 0; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; color:var(--faint); font-size:.76rem; font-family:var(--font-mono)}
   footer.end a{color:inherit}
+  @media(max-width:560px){.foot-cta{padding:64px 20px 22px;border-radius:24px}}
 
   /* ---------- reveal + a11y ---------- */
   @media (prefers-reduced-motion: no-preference){
     .js .reveal{opacity:0; transform:translateY(22px); transition:opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1)}
     .js .reveal.in{opacity:1; transform:none}
   }
-  a:focus-visible,.btn:focus-visible,.copy-btn:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px; border-radius:6px}
 </style>

@@ -1,30 +1,37 @@
-/* Shared base for content pages (blog, later projects / leetcode / now).
-   Same tokens and nav as the homepage; the animated home/about pages carry their own copy. */
+/* Shared visual foundation for every public page. */
 :root{
   --bg:#e9e8f5;
-  --bg-grad:linear-gradient(180deg,#f6f5fd 0%, #eceaf7 42%, #ddd9ef 100%);
+  --bg-grad:linear-gradient(180deg,#faf9fe 0%, #f1eff9 44%, #e5e1f1 100%);
   --bg-2:#ffffff;
   --bg-3:#f5f3fd;
-  --card-1:#efecfa;
-  --card-2:#f6f4fd;
+  --card-1:rgba(255,255,255,.72);
+  --card-2:rgba(244,241,252,.88);
   --fg:#2b2545;
   --fg-strong:#1f1a38;
-  --muted:#6a6385;
-  --faint:#9690ab;
-  --line:rgba(96,66,170,.16);
-  --line-2:rgba(96,66,170,.30);
-  --accent:#7c4dff;
-  --accent-2:#5a2fd0;
+  --muted:#655e7e;
+  --faint:#888199;
+  --line:rgba(82,58,137,.13);
+  --line-2:rgba(82,58,137,.25);
+  --accent:#7445e8;
+  --accent-2:#5830bd;
   --accent-soft:#b9a4ff;
   --glow:#9b6bff;
   --pollen:#d99a2b;
-  --st-shipped:#2f9e74;       /* project / now status dots */
-  --st-building:#7c4dff;
-  --st-paused:#9690ab;
+  --st-shipped:#237f5e;
+  --st-building:#7445e8;
+  --st-paused:#888199;
+  --title-gradient:linear-gradient(118deg,#2c214d 0%, #6640c4 58%, #8a63dc 100%);
+  --shadow-sm:0 8px 24px -20px rgba(57,38,105,.45);
+  --shadow-md:0 24px 55px -36px rgba(57,38,105,.42);
+  --radius-sm:12px;
+  --radius-md:20px;
+  --radius-lg:32px;
+  --section-space:clamp(76px,10vw,128px);
+  --ease-out:cubic-bezier(.2,.7,.2,1);
   color-scheme: light;
-  --fs-display: clamp(2.4rem, 6.5vw, 5rem);
-  --fs-h2: clamp(1.9rem, 4.6vw, 3.4rem);
-  --fs-lead: clamp(1rem, 1.6vw, 1.15rem);
+  --fs-display:clamp(2.4rem, 6.5vw, 5rem);
+  --fs-h2:clamp(1.9rem, 4.6vw, 3.4rem);
+  --fs-lead:clamp(1rem, 1.6vw, 1.15rem);
   --font-sans:"Hanken Grotesk", "PingFang SC", "Hiragino Sans", "Noto Sans CJK SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   --font-display:"Archivo", "PingFang SC", "Hiragino Sans", "Noto Sans CJK SC", sans-serif;
   --font-mono:"Space Mono", ui-monospace, monospace;
@@ -45,8 +52,8 @@ body{
 body::after{
   content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
   background:
-    radial-gradient(48% 40% at 80% 8%, rgba(124,77,255,.10), transparent 70%),
-    radial-gradient(42% 40% at 10% 92%, rgba(124,77,255,.06), transparent 70%);
+    radial-gradient(48% 40% at 80% 8%, rgba(124,77,255,.08), transparent 70%),
+    radial-gradient(42% 40% at 10% 92%, rgba(124,77,255,.05), transparent 70%);
 }
 ::selection{background:var(--accent); color:#fff}
 .wrap{
@@ -55,28 +62,28 @@ body::after{
   padding-right:max(22px, env(safe-area-inset-right,0px));
 }
 
-/* ---------- nav (same as the homepage) ---------- */
 header.nav{
   position:fixed; left:0; right:0; top:0; z-index:20;
-  padding-top:env(safe-area-inset-top,0px);
-  backdrop-filter:blur(10px);
-  background:linear-gradient(to bottom, rgba(246,245,253,.86), rgba(246,245,253,0));
+  padding:calc(14px + env(safe-area-inset-top,0px)) max(16px, env(safe-area-inset-right,0px)) 0 max(16px, env(safe-area-inset-left,0px));
+  pointer-events:none;
 }
 .nav-inner{
-  max-width:1200px; margin:0 auto;
+  max-width:1180px; margin:0 auto; pointer-events:auto;
   display:flex; align-items:center; justify-content:space-between; gap:18px;
-  padding:16px max(22px, env(safe-area-inset-right,0px)) 16px max(22px, env(safe-area-inset-left,0px));
+  padding:10px 12px 10px 20px; border:1px solid rgba(255,255,255,.78); border-radius:20px;
+  background:rgba(250,249,254,.76); box-shadow:0 12px 40px -22px rgba(48,31,91,.38), inset 0 0 0 1px var(--line);
+  -webkit-backdrop-filter:blur(18px) saturate(1.2); backdrop-filter:blur(18px) saturate(1.2);
 }
 .brand{
-  font-family:"Archivo",sans-serif; font-weight:800; letter-spacing:.22em;
-  font-size:.95rem; text-transform:uppercase; color:var(--fg);
-  display:flex; align-items:center; gap:9px; text-decoration:none;
+  font-family:var(--font-display); font-weight:800; letter-spacing:.2em;
+  font-size:.9rem; text-transform:uppercase; color:var(--fg);
+  display:flex; align-items:center; gap:10px; text-decoration:none;
 }
 .brand .dot{width:9px; height:9px; border-radius:50%;
-  background:radial-gradient(circle at 35% 30%, #c6adff, var(--accent));
-  box-shadow:0 0 12px 1px rgba(124,77,255,.55)}
-nav.links{display:flex; gap:26px; font-size:.82rem; letter-spacing:.02em}
-nav.links a{color:var(--muted); text-decoration:none; transition:color .2s}
+  background:radial-gradient(circle at 35% 30%, #d4c5f7, var(--accent));
+  box-shadow:0 0 0 4px rgba(116,69,232,.08)}
+nav.links{display:flex; align-items:center; gap:25px; font-size:.82rem; letter-spacing:.02em}
+nav.links a{position:relative; color:var(--muted); text-decoration:none; transition:color .2s}
 nav.links a:hover{color:var(--fg)}
 .nav-cta{
   font-family:var(--font-mono); font-size:.75rem; letter-spacing:.04em;
@@ -86,23 +93,36 @@ nav.links a:hover{color:var(--fg)}
 .nav-cta:hover{background:var(--accent); border-color:var(--accent); color:#fff}
 @media(max-width:860px){ nav.links{display:none} }
 
-/* ---------- shared ---------- */
 .eyebrow{
-  font-family:var(--font-mono); font-size:.74rem; letter-spacing:.18em;
+  font-family:var(--font-mono); font-size:.7rem; letter-spacing:.16em;
   text-transform:uppercase; color:var(--accent-2); display:flex; gap:10px; align-items:center;
 }
-.eyebrow::before{content:""; width:26px; height:1px; background:var(--line-2)}
+.eyebrow::before{content:""; width:24px; height:1px; background:var(--line-2)}
+.cta-group{display:flex; gap:12px; flex-wrap:wrap; margin-top:30px}
+.btn{
+  min-height:46px; font-family:var(--font-sans); font-weight:600; font-size:.92rem;
+  padding:12px 22px; border-radius:999px; text-decoration:none; cursor:pointer;
+  border:1px solid transparent; transition:transform .2s var(--ease-out), background .2s, border-color .2s, box-shadow .2s;
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+}
+.btn:hover{transform:translateY(-2px)}
+.btn-solid{background:var(--fg-strong); color:#fff; box-shadow:var(--shadow-sm)}
+.btn-solid:hover{background:var(--accent-2); box-shadow:0 12px 28px -16px rgba(88,48,189,.65)}
+.btn-ghost{border-color:var(--line-2); color:var(--fg); background:rgba(255,255,255,.34)}
+.btn-ghost:hover{border-color:var(--accent); background:rgba(255,255,255,.68)}
+.text-link{font-family:var(--font-mono); font-size:.74rem; color:var(--accent-2); text-decoration:none}
+.text-link:hover{text-decoration:underline; text-underline-offset:5px}
 .page-title{
   font-family:var(--font-display); font-weight:800; line-height:1;
-  font-size:var(--fs-display); letter-spacing:-.01em; margin:.4em 0 0;
+  font-size:var(--fs-display); letter-spacing:-.025em; margin:.4em 0 0;
   text-wrap:balance; max-width:16ch; color:var(--fg-strong);
-  background:linear-gradient(118deg,#352677 0%, #7c4dff 55%, #9b6bff 100%);
+  background:var(--title-gradient);
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
 }
 .page-lead{color:var(--muted); font-size:var(--fs-lead); max-width:52ch; margin:22px 0 0}
 .tag{
-  font-family:var(--font-mono); font-size:.7rem; letter-spacing:.04em; color:var(--accent-2);
-  background:rgba(124,77,255,.08); border:1px solid var(--line); border-radius:999px; padding:3px 10px;
+  font-family:var(--font-mono); font-size:.68rem; letter-spacing:.03em; color:var(--accent-2);
+  background:rgba(116,69,232,.06); border:1px solid var(--line); border-radius:999px; padding:3px 10px;
   white-space:nowrap;
 }
 .lang-badge{
@@ -115,7 +135,11 @@ footer.site-foot{
   color:var(--faint); font-size:.8rem; font-family:var(--font-mono);
 }
 footer.site-foot a{color:inherit}
-a:focus-visible, button:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px; border-radius:6px}
+a:focus-visible, button:focus-visible, summary:focus-visible{outline:2px solid var(--accent-2); outline-offset:3px; border-radius:6px}
+@media(max-width:560px){
+  .cta-group .btn{flex:1 1 150px}
+  .wrap{padding-left:max(18px, env(safe-area-inset-left,0px)); padding-right:max(18px, env(safe-area-inset-right,0px))}
+}
 
 /* ---------- article body (blog posts, project pages) ---------- */
 .prose{margin-top:44px; padding-top:34px; border-top:1px solid var(--line); font-size:1.06rem; line-height:1.85; color:var(--fg)}
