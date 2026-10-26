@@ -40,7 +40,8 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
     <header class="blog-head">
       <div class="blog-scene" aria-hidden="true">
         <canvas class="blog-canvas blog-fish-main"></canvas>
-        <video class="blog-fish-source" src="/assets/blog-fish.mp4" poster="/assets/blog-fish-poster.jpg" width="362" height="632" muted autoplay loop playsinline preload="auto"></video>
+        <video class="blog-fish-source" src="/assets/blog-fish.mp4" width="366" height="632" muted autoplay playsinline preload="auto"></video>
+        <video class="blog-fish-source" src="/assets/blog-fish.mp4" width="366" height="632" muted playsinline preload="auto"></video>
       </div>
       <div class="blog-copy">
         <div class="eyebrow">{t('blog.eyebrow')}</div>
@@ -115,86 +116,121 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
 
 <script is:inline>
   (function(){
-    var video = document.querySelector('.blog-fish-source');
+    var videos = Array.from(document.querySelectorAll('.blog-fish-source'));
     var canvas = document.querySelector('.blog-fish-main');
     var scene = document.querySelector('.blog-scene');
-    if (!video || !canvas || !scene) return;
+    if (videos.length !== 2 || !canvas || !scene) return;
     var context = canvas.getContext('2d');
-    if (!context) return;
     var frame = document.createElement('canvas');
     var foreground = frame.getContext('2d');
-    if (!foreground) return;
+    if (!context || !foreground) return;
     var reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    var poster = new Image();
+    var active = 0;
+    var prepared = false;
+    var blending = false;
+    var overlap = 1;
     var handle = 0;
     var width = 0;
     var height = 0;
-    var poster = new Image();
+    function ready(video){ return video.readyState >= 2 && video.videoWidth > 0; }
+    function play(video){ video.muted = true; video.play().catch(function(){}); }
     function resize(){
       width = scene.clientWidth;
       height = scene.clientHeight;
-      var ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+      var ratio = Math.min(window.devicePixelRatio || 1, 2);
       [canvas, frame].forEach(function(item){
         item.width = Math.round(width * ratio);
         item.height = Math.round(height * ratio);
       });
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       foreground.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.imageSmoothingEnabled = foreground.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = foreground.imageSmoothingQuality = 'high';
       paint();
     }
     function paint(){
       if (!width) return;
-      var source = video.readyState >= 2 ? video : poster;
+      var current = videos[active];
+      var next = videos[1 - active];
+      var source = ready(current) ? current : (ready(next) ? next : poster);
       var vw = source.videoWidth || source.naturalWidth;
       var vh = source.videoHeight || source.naturalHeight;
       if (!vw || !vh) return;
       var drawWidth = vw * height / vh;
       var drawX = drawWidth >= width ? (width - drawWidth) / 2 : width - drawWidth;
       var backdrop = context.createLinearGradient(0, 0, 0, height);
-      backdrop.addColorStop(0, '#37333f');
-      backdrop.addColorStop(.3, '#4c4657');
-      backdrop.addColorStop(.76, '#57515f');
-      backdrop.addColorStop(1, '#293043');
+      backdrop.addColorStop(0, '#3a3a3a');
+      backdrop.addColorStop(.3, '#363537');
+      backdrop.addColorStop(.5, '#4e5155');
+      backdrop.addColorStop(.76, '#606063');
+      backdrop.addColorStop(.9, '#353f50');
+      backdrop.addColorStop(1, '#222c3a');
       context.fillStyle = backdrop;
       context.fillRect(0, 0, width, height);
       foreground.clearRect(0, 0, width, height);
       foreground.globalCompositeOperation = 'source-over';
+      foreground.globalAlpha = 1;
       foreground.drawImage(source, drawX, 0, drawWidth, height);
+      if (source === current && blending && ready(next)) {
+        var progress = Math.max(0, Math.min(1, (overlap - (current.duration - current.currentTime)) / overlap));
+        foreground.globalAlpha = progress * progress * (3 - 2 * progress);
+        foreground.drawImage(next, drawX, 0, drawWidth, height);
+        foreground.globalAlpha = 1;
+      }
       if (drawX > 0) {
         foreground.globalCompositeOperation = 'destination-in';
         var fade = foreground.createLinearGradient(drawX, 0, drawX + drawWidth, 0);
         fade.addColorStop(0, 'transparent');
-        fade.addColorStop(.08, 'rgba(0,0,0,.35)');
-        fade.addColorStop(.2, '#000');
+        fade.addColorStop(.1, 'rgba(0,0,0,.2)');
+        fade.addColorStop(.3, '#000');
         fade.addColorStop(1, '#000');
         foreground.fillStyle = fade;
         foreground.fillRect(drawX, 0, drawWidth, height);
       }
       context.drawImage(frame, 0, 0, width, height);
     }
-    function draw(){
+    function tick(){
+      if (reduced.matches || document.hidden) { handle = 0; return; }
+      var current = videos[active];
+      var next = videos[1 - active];
+      if (ready(current) && isFinite(current.duration)) {
+        var remaining = current.duration - current.currentTime;
+        if (remaining <= overlap + .4 && remaining > 0 && !prepared) {
+          prepared = true;
+          next.currentTime = 0;
+          play(next);
+        }
+        if (remaining <= overlap && prepared) blending = true;
+        if ((current.ended || remaining <= .02) && ready(next)) {
+          if (!prepared) { next.currentTime = 0; play(next); }
+          current.pause();
+          active = 1 - active;
+          prepared = false;
+          blending = false;
+        }
+      }
       paint();
-      queue();
-    }
-    function queue(){
-      if (reduced.matches) return;
-      if (video.requestVideoFrameCallback) handle = video.requestVideoFrameCallback(draw);
-      else handle = requestAnimationFrame(draw);
+      handle = requestAnimationFrame(tick);
     }
     function motion(){
-      if (video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(handle);
       cancelAnimationFrame(handle);
-      video.autoplay = !reduced.matches;
-      if (reduced.matches) {
-        video.pause();
+      handle = 0;
+      videos.forEach(function(video){ video.autoplay = false; });
+      if (reduced.matches || document.hidden) {
+        videos.forEach(function(video){ video.pause(); });
+        prepared = blending = false;
         paint();
       } else {
-        video.play().catch(function(){});
-        queue();
+        play(videos[active]);
+        if (prepared) play(videos[1 - active]);
+        handle = requestAnimationFrame(tick);
       }
     }
     poster.onload = paint;
-    poster.src = '/assets/blog-fish-poster.jpg';
-    video.addEventListener('loadeddata', paint);
+    poster.src = '/assets/blog-fish-poster.png';
+    videos.forEach(function(video){ video.addEventListener('loadeddata', paint); });
+    document.addEventListener('visibilitychange', motion);
     reduced.addEventListener('change', motion);
     new ResizeObserver(resize).observe(scene);
     resize();
@@ -230,7 +266,7 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
 <style>
   .blog{padding-top:112px; position:relative}
   .blog-head{position:relative; z-index:1; left:50%; width:100vw; min-height:min(820px,88svh); margin:-112px 0 20px -50vw; padding:150px max(22px,calc((100vw - 1156px)/2)) 82px; display:flex; align-items:center; overflow:hidden; background:#766a83}
-  .blog-scene{position:absolute; inset:0; overflow:hidden; pointer-events:none; background:linear-gradient(180deg,#37333f 0%,#4c4657 30%,#57515f 76%,#293043 100%)}
+  .blog-scene{position:absolute; inset:0; overflow:hidden; pointer-events:none; background:linear-gradient(180deg,#3a3a3a 0%,#363537 30%,#4e5155 50%,#606063 76%,#353f50 90%,#222c3a 100%)}
   .blog-scene::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 86%,var(--bg) 100%)}
   .blog-canvas{position:absolute; inset:0; display:block; width:100%; height:100%}
   .blog-fish-main{filter:brightness(.9) saturate(.9)}
