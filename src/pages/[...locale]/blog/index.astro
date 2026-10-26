@@ -128,6 +128,7 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
     var handle = 0;
     var width = 0;
     var height = 0;
+    var poster = new Image();
     function resize(){
       width = scene.clientWidth;
       height = scene.clientHeight;
@@ -141,9 +142,11 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
       paint();
     }
     function paint(){
-      if (!width || video.readyState < 2) return;
-      var vw = video.videoWidth;
-      var vh = video.videoHeight;
+      if (!width) return;
+      var source = video.readyState >= 2 ? video : poster;
+      var vw = source.videoWidth || source.naturalWidth;
+      var vh = source.videoHeight || source.naturalHeight;
+      if (!vw || !vh) return;
       var drawWidth = vw * height / vh;
       var drawX = drawWidth >= width ? (width - drawWidth) / 2 : width - drawWidth;
       var backdrop = context.createLinearGradient(0, 0, 0, height);
@@ -155,7 +158,7 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
       context.fillRect(0, 0, width, height);
       foreground.clearRect(0, 0, width, height);
       foreground.globalCompositeOperation = 'source-over';
-      foreground.drawImage(video, drawX, 0, drawWidth, height);
+      foreground.drawImage(source, drawX, 0, drawWidth, height);
       if (drawX > 0) {
         foreground.globalCompositeOperation = 'destination-in';
         var fade = foreground.createLinearGradient(drawX, 0, drawX + drawWidth, 0);
@@ -189,6 +192,8 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
         queue();
       }
     }
+    poster.onload = paint;
+    poster.src = '/assets/blog-fish-poster.jpg';
     video.addEventListener('loadeddata', paint);
     reduced.addEventListener('change', motion);
     new ResizeObserver(resize).observe(scene);
@@ -225,7 +230,7 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
 <style>
   .blog{padding-top:112px; position:relative}
   .blog-head{position:relative; z-index:1; left:50%; width:100vw; min-height:min(820px,88svh); margin:-112px 0 20px -50vw; padding:150px max(22px,calc((100vw - 1156px)/2)) 82px; display:flex; align-items:center; overflow:hidden; background:#766a83}
-  .blog-scene{position:absolute; inset:0; overflow:hidden; pointer-events:none; background:#766a83 url('/assets/blog-fish-poster.jpg') right center/contain no-repeat}
+  .blog-scene{position:absolute; inset:0; overflow:hidden; pointer-events:none; background:linear-gradient(180deg,#37333f 0%,#4c4657 30%,#57515f 76%,#293043 100%)}
   .blog-scene::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 86%,var(--bg) 100%)}
   .blog-canvas{position:absolute; inset:0; display:block; width:100%; height:100%}
   .blog-fish-main{filter:brightness(.9) saturate(.9)}

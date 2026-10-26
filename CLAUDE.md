@@ -83,7 +83,7 @@
 
 ## 环境循环动画(博客页头 / 学习页左下角)
 - 博客列表使用 `ref4.mov` 的原始画面(彩色鱼群、水面、阳光与深灰环境),只裁掉源左侧 4 像素黑边(成品 362×632),不抠主体、不做 WebGL 拉伸。`avconvert` 转为 Web 播放资源 `public/assets/blog-fish.mp4`(H.264),`blog-fish-poster.jpg` 是原色静帧;原始 `ref4.mov` 保留在仓库根目录。
-- 参考 The Sea We Breathe / And we were 的一体场景:博客页头为 100vw 全宽水下世界,标题直接叠在场景里,不再是右侧视频卡。一个隐藏 `<video>` 驱动单个 `<canvas>`,原视频始终按高度完整绘制并保持比例;宽屏左侧使用纵向明暗底色,只在实际画面左缘 20% 内柔化衔接,不延展墙面/地面(会产生假拐角和透视断层),窄屏居中裁切。桌面页头底部 14% 过渡到文章区底色;淡紫渐变保证文字可读,手机标题位于底部。`requestVideoFrameCallback` 逐帧绘制,`muted autoplay loop playsinline` 循环播放,poster 兜底,reduced-motion 暂停视频并保留当前帧。
+- 参考 The Sea We Breathe / And we were 的一体场景:博客页头为 100vw 全宽水下世界,标题直接叠在场景里,不再是右侧视频卡。一个隐藏 `<video>` 驱动单个 `<canvas>`,原视频始终按高度完整绘制并保持比例;宽屏左侧使用纵向明暗底色,只在实际画面左缘 20% 内柔化衔接,不延展墙面/地面(会产生假拐角和透视断层),窄屏居中裁切。桌面页头底部 14% 过渡到文章区底色;淡紫渐变保证文字可读,手机标题位于底部。`requestVideoFrameCallback` 逐帧绘制,`muted autoplay loop playsinline` 循环播放;poster 也通过同一画布绘制(不要恢复 CSS 右侧背景图,否则强刷加载时会出现硬边),reduced-motion 暂停视频并保留当前帧。
 - 学习页继续使用 `ref3.mov` 的植物动画:抠图后调成紫/丁香色,60→30fps,首尾 1.5s 交叉淡化;资源 `plants.mp4`(616×480,H.264)与 `plants-still.png`。
 - 学习页组件 `src/components/plants/PlantLoop.astro`:固定在视口左下(贴底边、高 min(74vh,680px)),0.4 倍速、不透明度 .62;同时设 defaultPlaybackRate,避免加载时重置速度;shader 合成颜色与 alpha 并轻微锐化;reduced-motion / 无 WebGL / 播放被拒显示静帧;≤760px 隐藏。
 
