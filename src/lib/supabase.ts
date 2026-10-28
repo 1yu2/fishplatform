@@ -8,6 +8,7 @@ const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
 export const supabaseConfigured = Boolean(url && key);
 
 let browserClient: SupabaseClient | undefined;
+let anonClient: SupabaseClient | undefined;
 
 /** signed-in client for /studio (keeps the session in the browser) */
 export function studioClient(): SupabaseClient {
@@ -18,5 +19,5 @@ export function studioClient(): SupabaseClient {
 /** anonymous client for public pages: sees only public / published rows */
 export function publicClient(): SupabaseClient | undefined {
   if (!supabaseConfigured) return undefined;
-  return createClient(url!, key!, { auth: { persistSession: false, autoRefreshToken: false } });
+  return (anonClient ??= createClient(url!, key!, { auth: { persistSession: false, autoRefreshToken: false } }));
 }

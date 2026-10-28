@@ -6,12 +6,25 @@ import type { Learning, Note, Todo } from './studio-types';
 import { localePath, type Lang } from '../i18n/utils';
 import { getPosts, postPath, readingMinutes } from './posts';
 
-export async function publishedNotes(): Promise<Note[]> {
+// what list callers read (blogEntries, the learning page); body stays because reading time is counted from it
+const LIST_COLUMNS = 'id, title, slug, summary, body, tags, lang, published_at, created_at, learning_ids, projects';
+export type PublishedNote = Pick<Note, 'id' | 'title' | 'slug' | 'summary' | 'body' | 'tags' | 'lang' | 'published_at' | 'created_at' | 'learning_ids' | 'projects'>;
+
+export async function publishedNotes(): Promise<PublishedNote[]> {
   const sb = publicClient();
   if (!sb) return [];
-  const { data, error } = await sb.from('notes').select('*').eq('status', 'published').order('published_at', { ascending: false });
+  const { data, error } = await sb.from('notes').select(LIST_COLUMNS).eq('status', 'published').order('published_at', { ascending: false });
   if (error) console.error('[notes]', error.message);
-  return (data as Note[]) ?? [];
+  return (data as PublishedNote[] | null) ?? [];
+}
+
+/** one published note for its post page (the whole row: related to-dos / learning / projects included) */
+export async function publishedNote(slug: string, lang: Lang): Promise<Note | null> {
+  const sb = publicClient();
+  if (!sb || !slug) return null;
+  const { data, error } = await sb.from('notes').select('*').eq('status', 'published').eq('slug', slug).eq('lang', lang).limit(1).maybeSingle();
+  if (error) console.error('[note]', error.message);
+  return (data as Note | null) ?? null;
 }
 
 export async function publicLearning(): Promise<Learning[]> {

@@ -8,7 +8,7 @@ import { SITE } from '../../../site';
 import { langFromParam, languages, langs, localePath, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate, getPosts, postPath, readingMinutes } from '../../../lib/posts';
 import { getProjects, projectPath } from '../../../lib/projects';
-import { blogEntries, cachePublic, learningByIds, notePath, publicTodosFor, publishedNotes, renderMarkdown } from '../../../lib/public-data';
+import { blogEntries, cachePublic, learningByIds, notePath, publicTodosFor, publishedNote, renderMarkdown } from '../../../lib/public-data';
 import { formatStars, type Learning, type Todo } from '../../../lib/studio-types';
 
 // Rendered on request: a post is either a Markdown file in the repo or a note published from Studio.
@@ -20,7 +20,7 @@ const t = useTranslations(lang);
 
 const files = await getPosts();
 const file = files.find((p) => p.id === slug && p.data.lang === lang);
-const note = file ? undefined : (await publishedNotes()).find((n) => n.slug === slug && n.lang === lang);
+const note = file ? undefined : await publishedNote(slug, lang);
 if (!file && !note) return Astro.rewrite('/404');
 cachePublic(Astro.response.headers);
 
@@ -50,7 +50,7 @@ const alternates = Object.fromEntries(
   }),
 ) as Record<Lang, string>;
 
-// newer / older among all posts in this language
+// newer / older among all posts in this language (the only place that still needs the full list)
 const same = (await blogEntries()).filter((e) => e.lang === lang);
 const i = same.findIndex((e) => e.href === href);
 const newer = i > 0 ? same[i - 1] : undefined;
@@ -74,8 +74,7 @@ const hasRelated = relLearning.length + relTodos.length + relProjects.length > 0
 const canonical = file?.data.canonical ?? new URL(href, Astro.site).href;
 const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.replace(/^www\./, '') : '';
 ---
-<Base lang={lang} title={`${title} — ${SITE.name}`} description={summary} alternates={alternates}>
-  <link slot="head" rel="canonical" href={canonical} />
+<Base lang={lang} title={`${title} — ${SITE.name}`} description={summary} alternates={alternates} canonical={canonical} type="article">
   <Nav lang={lang} current="blog" alternates={alternates} />
 
   <main class="wrap">

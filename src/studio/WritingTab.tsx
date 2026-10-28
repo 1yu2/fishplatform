@@ -4,8 +4,10 @@ import { studioClient } from '../lib/supabase';
 import type { Learning, Note, Todo } from '../lib/studio-types';
 import { diagramSrc, parseDiagramSize } from '../lib/diagram';
 import { editorExtensions } from './tiptap';
-import DiagramModal from './DiagramModal';
-import MindMapModal from './MindMapModal';
+import { Suspense, lazy } from 'preact/compat';
+// the draw.io / mind-elixir editors load only when a diagram is opened (mind-elixir is most of their weight)
+const DiagramModal = lazy(() => import('./DiagramModal'));
+const MindMapModal = lazy(() => import('./MindMapModal'));
 import { TagInput, errText, slugify, useToast, type ProjectRef } from './shared';
 
 const LANGS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }, { id: 'ja', label: '日本語' }] as const;
@@ -829,8 +831,10 @@ function Editor({ note, learning, todos, projects, listOpen, onOpenList, onCreat
           <T t={float.kind === 'table' ? '文字右对齐(当前列)' : '右对齐'} onClick={() => align('right')}><AlignIcon k="right" /></T>
         </div>
       )}
-      {diagram?.kind === 'drawio' && <DiagramModal xml={diagram.data} onSave={(svg) => saveDiagram(svg, 'drawio', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
-      {diagram?.kind === 'mindmap' && <MindMapModal data={diagram.data} onSave={(svg) => saveDiagram(svg, 'mindmap', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
+      <Suspense fallback={null}>
+        {diagram?.kind === 'drawio' && <DiagramModal xml={diagram.data} onSave={(svg) => saveDiagram(svg, 'drawio', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
+        {diagram?.kind === 'mindmap' && <MindMapModal data={diagram.data} onSave={(svg) => saveDiagram(svg, 'mindmap', diagram.oldUrl)} onClose={() => setDiagram(null)} />}
+      </Suspense>
     </div>
   );
 }

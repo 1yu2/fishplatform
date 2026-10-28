@@ -8,7 +8,7 @@
 <div class="plant-loop" aria-hidden="true">
   <canvas class="plant-gl"></canvas>
   <img class="plant-still" src="/assets/plants-still.png" alt="" width="354" height="552" loading="lazy" decoding="async">
-  <video class="plant-src" src="/assets/plants.mp4" muted loop playsinline preload="auto"></video>
+  <video class="plant-src" src="/assets/plants.mp4" muted loop playsinline preload="none"></video>
 </div>
 
 <style is:global>
@@ -83,6 +83,9 @@
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
         // Playback can be refused; show the still and retry. Re-apply the rate because loading resets it.
+        // The video is preload="none" (the loop is hidden on phones), so fetch it only once WebGL is ready.
+        video.preload = 'auto';
+        video.load();
         const RATE = 0.4;
         const slow = () => { video.defaultPlaybackRate = RATE; video.playbackRate = RATE; };
         slow();
