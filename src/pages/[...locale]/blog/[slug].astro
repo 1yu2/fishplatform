@@ -162,7 +162,7 @@ const origin = file?.data.canonical ? new URL(file.data.canonical).hostname.repl
       <a href={localePath(lang, '/blog/')}>{t('blog.back')}</a>
     </footer>
   </main>
-  <ZoomImages />
+  <ZoomImages lang={lang} />
 </Base>
 
 <script is:inline>

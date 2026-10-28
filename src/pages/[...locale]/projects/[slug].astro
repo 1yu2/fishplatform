@@ -75,7 +75,7 @@ const host = (u: string) => new URL(u).host.replace(/^www\./, '') + new URL(u).p
       <a href={localePath(lang, '/projects/')}>{t('projects.back')}</a>
     </footer>
   </main>
-  <ZoomImages />
+  <ZoomImages lang={lang} />
 </Base>
 
 <style>

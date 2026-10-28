@@ -2,8 +2,13 @@
 // Pictures in an article (mind maps, architecture diagrams, any image) can be zoomed *in place*: the picture keeps its
 // frame and the content inside scales around the mouse. Click the picture, then scroll to zoom (or hold Ctrl/⌘ and
 // scroll without clicking); drag to move; double-click to zoom in or reset; ＋ − ⟲ buttons appear on hover.
+import { useTranslations, type Lang } from '../i18n/utils';
+
+interface Props { lang: Lang }
+const t = useTranslations(Astro.props.lang);
+const labels = { hint: t('zoom.hint'), in: t('zoom.in'), out: t('zoom.out'), reset: t('zoom.reset') };
 ---
-<script is:inline>
+<script is:inline define:vars={{ labels }}>
 (function(){
   var MAX = 8;
   function setup(img){
@@ -32,8 +37,10 @@
     }
     frame.classList.add('zv-frame');
     frame.insertAdjacentHTML('beforeend',
-      '<div class="zv-tools"><button type="button" data-a="in" aria-label="Zoom in">+</button><button type="button" data-a="out" aria-label="Zoom out">−</button><button type="button" data-a="reset" aria-label="Reset" hidden>⟲</button></div>' +
-      '<div class="zv-hint">点一下图片 · 滚轮缩放 · 拖动平移 · 双击放大</div>');
+      '<div class="zv-tools"><button type="button" data-a="in">+</button><button type="button" data-a="out">−</button><button type="button" data-a="reset" hidden>⟲</button></div>' +
+      '<div class="zv-hint"></div>');
+    frame.querySelector('.zv-hint').textContent = labels.hint;
+    frame.querySelectorAll('.zv-tools button').forEach(function(b){ b.setAttribute('aria-label', labels[b.dataset.a]); });
     var reset = frame.querySelector('[data-a="reset"]');
 
     var s = 1, x = 0, y = 0;

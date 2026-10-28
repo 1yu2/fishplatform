@@ -1,6 +1,6 @@
 ---
 import '../styles/site.css';
-import { htmlLang, langs, localePath, type Lang } from '../i18n/utils';
+import { htmlLang, langs, localePath, useTranslations, type Lang } from '../i18n/utils';
 
 interface Props {
   lang: Lang;
@@ -14,10 +14,13 @@ interface Props {
   canonical?: string;
   /** og:type: posts pass "article" */
   type?: 'website' | 'article';
+  /** keep the page out of search results (404): no canonical / og:url / hreflang */
+  noindex?: boolean;
 }
-const { lang, title, description, alternates, path = '/', canonical: canonicalProp, type = 'website' } = Astro.props;
+const { lang, title, description, alternates, path = '/', canonical: canonicalProp, type = 'website', noindex = false } = Astro.props;
 const alts = Object.fromEntries(langs.map((l) => [l, alternates?.[l] ?? localePath(l, path)])) as Record<Lang, string>;
 const canonical = canonicalProp ?? new URL(Astro.url.pathname, Astro.site).href;
+const rssTitle = useTranslations(lang)('meta.rss');
 const ogLocale: Record<Lang, string> = { en: 'en_US', ja: 'ja_JP', zh: 'zh_CN' };
 ---
 <!doctype html>
@@ -27,14 +30,16 @@ const ogLocale: Record<Lang, string> = { en: 'en_US', ja: 'ja_JP', zh: 'zh_CN' }
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{title}</title>
   {description && <meta name="description" content={description}>}
-  <link rel="canonical" href={canonical}>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  {noindex ? <meta name="robots" content="noindex"> : <link rel="canonical" href={canonical}>}
   <meta property="og:title" content={title}>
   {description && <meta property="og:description" content={description}>}
   <meta property="og:type" content={type}>
-  <meta property="og:url" content={canonical}>
+  {!noindex && <meta property="og:url" content={canonical}>}
   <meta property="og:locale" content={ogLocale[lang]}>
   <meta name="twitter:card" content="summary">
-  {langs.map((l) => <link rel="alternate" hreflang={htmlLang[l]} href={new URL(alts[l], Astro.site)} />)}
+  {!noindex && langs.map((l) => <link rel="alternate" hreflang={htmlLang[l]} href={new URL(alts[l], Astro.site)} />)}
+  <link rel="alternate" type="application/rss+xml" title={rssTitle} href={new URL(localePath(lang, '/rss.xml'), Astro.site)}>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
