@@ -28,7 +28,7 @@ Studio(`/studio`)里的待办、学习清单和笔记都存在 Supabase(免费�
 1. 左侧 **Project Settings** → **API Keys**(或 **Data API**),复制:
    - **Project URL**(形如 `https://xxxx.supabase.co`)
    - **anon / publishable key**(公开密钥;**不要**用 `service_role` / secret key)
-2. **本地**:在项目根目录新建 `.env`(已在 .gitignore 里,不会被提交):
+2. **本地**:在项目根目录新建 `.env`(可复制 `supabase/.env.example`;`.env` 已在 .gitignore 里,不会被提交):
    ```
    PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
    PUBLIC_SUPABASE_ANON_KEY=你的 anon / publishable key
