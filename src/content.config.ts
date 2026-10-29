@@ -49,6 +49,11 @@ const projects = defineCollection({
       date: z.coerce.date(),
       lang: z.enum(['en', 'ja', 'zh']),
       featured: z.boolean().default(false),
+      // case-study facts shown on the card and the detail page
+      kind: z.enum(['data', 'ai', 'engineering', 'other']).default('other'),
+      role: opt(z.string()),
+      period: opt(z.string()),
+      impact: opt(z.string()),
       translationKey: opt(z.string()),
       draft: z.boolean().default(false),
     }),

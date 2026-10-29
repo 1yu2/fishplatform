@@ -177,3 +177,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible{outline:2px solid v
 .prose th[align="right"], .prose td[align="right"]{text-align:right}
 .prose [style*="text-align:center"] table, .prose [style*="text-align:right"] table{display:table; width:auto; max-width:100%; margin-left:auto}
 .prose [style*="text-align:center"] table{margin-right:auto}
+
+/* Writing and the public learning list share one section: two tabs under the page header */
+.section-tabs{display:inline-flex; gap:2px; margin-top:26px; padding:3px; border-radius:999px; background:rgba(124,77,255,.07)}
+.section-tabs a{padding:7px 16px; border-radius:999px; font-size:.82rem; color:var(--muted); text-decoration:none}
+.section-tabs a:hover{color:var(--accent-2)}
+.section-tabs a[aria-current="page"]{background:var(--bg-2); color:var(--accent-2); font-weight:600; box-shadow:0 1px 4px rgba(60,40,140,.12)}

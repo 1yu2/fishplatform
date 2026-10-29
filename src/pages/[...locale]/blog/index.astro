@@ -52,6 +52,10 @@ const noProject = posts.filter((p) => !p.projects.some((k) => projectInfo.has(k)
 
     <div class="blog-body">
       <div class="blog-main">
+      <nav class="section-tabs" aria-label={t('nav.blog')}>
+        <a href={localePath(lang, '/blog/')} aria-current="page">{t('nav.blog')}</a>
+        <a href={localePath(lang, '/learning/')}>{t('nav.learning')}</a>
+      </nav>
       {tags.length > 0 && (
         <div class="filter" role="group" aria-label={t('blog.filter')}>
           <button type="button" class="chip" data-tag="" aria-pressed="true">{t('blog.all')}</button>

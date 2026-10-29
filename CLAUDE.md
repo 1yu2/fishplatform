@@ -35,6 +35,7 @@
   - 404 页按请求渲染(`Astro.rewrite('/404')` 要求),状态码 404。
 - 已移除:Garden(花园)和 `/admin`(Sveltia CMS);`/now`、`/garden`、`/admin` 旧链接在 `vercel.json` 里重定向到 `/learning` / `/studio`。
 - 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
+- **求职向的信息架构(分支 `portfolio-ia`)**:导航收成 首页 / 案例(`/projects/`,文案用 `nav.work`)/ 文章(`/blog/`)/ 关于;学习清单 `/learning/` 不在导航里,和文章页顶部共用一组标签(`.section-tabs`),在学习页时「文章」高亮。项目内容集合新增可选字段 `kind`(data/ai/engineering/other)、`role`、`period`、`impact`:案例页可按类型筛选(与状态筛选叠加)、卡片显示成果与角色,详情页顶部是事实栏,首页精选卡显示成果一行。首页 hero 文案(role/lead/eyebrow/cta1)与 `meta.home` 已按数据 / AI 方向改成草稿,真实经历到位后再改;不做简历页(简历随邮件发送)。
 - Nav 7 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ 悬浮 `.nav-inner` 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
 - Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体;首页第二行标题用系统 Georgia / 宋体类衬线斜体。

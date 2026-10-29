@@ -31,6 +31,10 @@ const excerpt = (s: string) => (s.length > 140 ? `${s.slice(0, 140).trimEnd()}â€
       <h1 class="page-title">{t('learning.title')}</h1>
       <p class="page-lead">{t('learning.lead')}</p>
     </header>
+    <nav class="section-tabs" aria-label={t('nav.blog')}>
+      <a href={localePath(lang, '/blog/')} >{t('nav.blog')}</a>
+      <a href={localePath(lang, '/learning/')} aria-current="page">{t('nav.learning')}</a>
+    </nav>
 
     {items.length === 0 && <p class="l-empty">{t('learning.empty')}</p>}
 

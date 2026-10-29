@@ -12,19 +12,17 @@ const { lang, current, alternates } = Astro.props;
 const t = useTranslations(lang);
 const home = localePath(lang, '/');
 
-// one list for the desktop row and the mobile menu; `extra` links drop out of the row on mid-width screens
+// one list for the desktop row and the mobile menu
 const links = [
   { href: home, label: t('nav.home'), page: 'home' },
-  { href: `${home}#about`, label: t('nav.studio'), extra: true },
-  { href: `${home}#services`, label: t('nav.services'), extra: true },
-  { href: localePath(lang, '/projects/'), label: t('nav.projects'), page: 'projects' },
+  { href: localePath(lang, '/projects/'), label: t('nav.work'), page: 'projects' },
+  // writing and the public learning list live together: /learning/ stays under the Writing item
   { href: localePath(lang, '/blog/'), label: t('nav.blog'), page: 'blog' },
-  { href: localePath(lang, '/learning/'), label: t('nav.learning'), page: 'learning' },
   { href: localePath(lang, '/about/'), label: t('nav.about'), page: 'about' },
 ];
 const attrs = (l: (typeof links)[number]) => ({
   href: l.href,
-  'aria-current': l.page && l.page === current ? 'page' : undefined,
+  'aria-current': l.page && (l.page === current || (l.page === 'blog' && current === 'learning')) ? 'page' : undefined,
   ...(l.external ? { target: '_blank', rel: 'noopener' } : {}),
 });
 ---
