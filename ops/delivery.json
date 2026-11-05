@@ -1,0 +1,13 @@
+{
+  "repo": "1yu2/fishplatform",
+  "internal": ["**/*.md", "ops/**", "supabase/README.md", "ref*.mov"],
+  "check": { "workflow": "build.yml", "job": "build" },
+  "ship": { "workflow": "build.yml" },
+  "review": { "points": "AGENTS.md" },
+  "health": {
+    "url": "https://fishplatform.vercel.app/health.json",
+    "field": "commit",
+    "pattern": "(?P<sha>[0-9a-f]{40})",
+    "require": { "ok": true }
+  }
+}
