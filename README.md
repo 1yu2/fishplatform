@@ -15,3 +15,7 @@ Pushing to the connected branch auto-deploys.
 ## Local preview
 Open `index.html` in a browser, or run:
     npx serve .
+
+## 自动交付
+
+给 PR 打上 `deliver` 标签，由 agent-autoloop 自动审查(审查要点见 [AGENTS.md](AGENTS.md))，审查通过后在飞书确认，再等 build、合并并核实 `/health.json` 上的线上版本。配置在 `ops/delivery.json`。
