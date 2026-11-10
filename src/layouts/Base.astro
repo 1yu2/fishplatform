@@ -1,6 +1,7 @@
 ---
 import '../styles/site.css';
 import { htmlLang, langs, localePath, useTranslations, type Lang } from '../i18n/utils';
+import { SITE } from '../site';
 
 interface Props {
   lang: Lang;
@@ -22,6 +23,16 @@ const alts = Object.fromEntries(langs.map((l) => [l, alternates?.[l] ?? localePa
 const canonical = canonicalProp ?? new URL(Astro.url.pathname, Astro.site).href;
 const rssTitle = useTranslations(lang)('meta.rss');
 const ogLocale: Record<Lang, string> = { en: 'en_US', ja: 'ja_JP', zh: 'zh_CN' };
+// link-preview image (regenerate with ops/og-image.py) and who is behind the site, for search engines
+const ogImage = new URL('/og.png', Astro.site).href;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.name,
+  url: new URL(localePath(lang, '/'), Astro.site).href,
+  inLanguage: htmlLang[lang],
+  author: { '@type': 'Person', name: SITE.name, url: Astro.site?.href, sameAs: [SITE.github] },
+};
 ---
 <!doctype html>
 <html lang={htmlLang[lang]}>
@@ -37,7 +48,13 @@ const ogLocale: Record<Lang, string> = { en: 'en_US', ja: 'ja_JP', zh: 'zh_CN' }
   <meta property="og:type" content={type}>
   {!noindex && <meta property="og:url" content={canonical}>}
   <meta property="og:locale" content={ogLocale[lang]}>
-  <meta name="twitter:card" content="summary">
+  <meta property="og:site_name" content={SITE.name}>
+  <meta property="og:image" content={ogImage}>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content={ogImage}>
+  {!noindex && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   {!noindex && langs.map((l) => <link rel="alternate" hreflang={htmlLang[l]} href={new URL(alts[l], Astro.site)} />)}
   <link rel="alternate" type="application/rss+xml" title={rssTitle} href={new URL(localePath(lang, '/rss.xml'), Astro.site)}>
   <link rel="preconnect" href="https://fonts.googleapis.com">

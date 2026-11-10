@@ -30,7 +30,7 @@ const attrs = (l: (typeof links)[number]) => ({
   <div class="nav-inner">
     <a class="brand" href={home}><span class="dot"></span>{SITE.name}</a>
     <nav class="links" aria-label="Primary">
-      {links.map((l) => <a class={l.extra ? 'extra' : undefined} {...attrs(l)}>{l.label}</a>)}
+      {links.map((l) => <a {...attrs(l)}>{l.label}</a>)}
     </nav>
     <div class="nav-right">
       <details class="lang-menu">
@@ -137,7 +137,7 @@ const attrs = (l: (typeof links)[number]) => ({
   nav.links a[aria-current="page"]::after{content:""; position:absolute; left:50%; bottom:-8px; width:4px; height:4px; border-radius:50%; background:var(--accent); transform:translateX(-50%)}
   nav.links a, .lang-menu summary{white-space:nowrap}
   /* mid-width screens drop the two homepage anchors before collapsing to the mobile menu */
-  @media(max-width:1180px){ nav.links{gap:20px} nav.links a.extra{display:none} }
+  @media(max-width:1180px){ nav.links{gap:20px} }
 
   /* ---------- mobile menu (≤860px, where the row of links is hidden) ---------- */
   .nav-toggle{

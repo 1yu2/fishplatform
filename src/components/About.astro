@@ -13,7 +13,7 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
 <!-- bloom sources: decoded off-screen, drawn (keyed + graded) into .flower canvas.gl -->
 <div class="flower-sources" aria-hidden="true">
   <video src="/assets/bloom.mp4" muted playsinline preload="auto"></video>
-  <video src="/assets/bloom.mp4" muted playsinline preload="auto"></video>
+  <video src="/assets/bloom.mp4" muted playsinline preload="none"></video>
 </div>
 
 <main class="wrap">
@@ -211,6 +211,10 @@ const chips = (key: 'about.kit.designItems' | 'about.kit.buildItems' | 'about.ki
 
   /* playback: two copies crossfade at the loop seam so it never hard-cuts from open back to bud */
   var vids = [].slice.call(document.querySelectorAll('.flower-sources video'));
+  // the second copy only matters at the loop seam: let the first one buffer, then warm it up (served from cache)
+  function warm(){ if(vids[1].preload !== 'auto'){ vids[1].preload = 'auto'; vids[1].load(); } }
+  vids[0].addEventListener('canplaythrough', warm, {once:true});
+  setTimeout(warm, 4000);
   var FADE = 1.2, cur = 0, mix = 0, fadeStart = -1, onScreen = true, still = false;
 
   var stillImg = null;

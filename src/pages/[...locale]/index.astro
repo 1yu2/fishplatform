@@ -8,7 +8,9 @@ const { lang } = Astro.props as { lang: Lang };
 const t = useTranslations(lang);
 const alternates = Object.fromEntries(langs.map((l) => [l, localePath(l, '/')])) as Record<Lang, string>;
 ---
-<Base lang={lang} title={t('meta.home')} path="/">
+<Base lang={lang} title={t('meta.home')} description={t('meta.homeDesc')} path="/">
+  <!-- the scene script sits at the end of the body; start fetching three.js while the page is still parsing -->
+  <link slot="head" rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
   <script is:inline slot="head">
   (function(){
     var d = document.documentElement;

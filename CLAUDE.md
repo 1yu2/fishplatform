@@ -36,7 +36,9 @@
 - 已移除:Garden(花园)和 `/admin`(Sveltia CMS);`/now`、`/garden`、`/admin` 旧链接在 `vercel.json` 里重定向到 `/learning` / `/studio`。
 - 文章/项目正文样式 `.prose` 在 `src/styles/site.css`(博客和项目共用);状态色 token `--st-shipped/--st-building/--st-paused`。
 - **求职向的信息架构(分支 `portfolio-ia`)**:导航收成 首页 / 案例(`/projects/`,文案用 `nav.work`)/ 文章(`/blog/`)/ 关于;学习清单 `/learning/` 不在导航里,和文章页顶部共用一组标签(`.section-tabs`),在学习页时「文章」高亮。项目内容集合新增可选字段 `kind`(data/ai/engineering/other)、`role`、`period`、`impact`:案例页可按类型筛选(与状态筛选叠加)、卡片显示成果与角色,详情页顶部是事实栏,首页精选卡显示成果一行。首页 hero 文案(role/lead/eyebrow/cta1)与 `meta.home` 已按数据 / AI 方向改成草稿,真实经历到位后再改;不做简历页(简历随邮件发送)。
-- Nav 7 个链接在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤1180px 时横排隐藏 Studio/Services(`extra`);≤860px 横排整排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ 悬浮 `.nav-inner` 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
+- Nav 4 个链接(首页 / 案例 / 文章 / 关于)在 frontmatter 的 `links` 数组里(桌面横排和手机菜单共用):≤860px 横排隐藏,改用汉堡按钮 + 下拉面板(`#nav-menu`,点链接/外部/Esc 关闭,打开时锁滚动 `html.nav-open`)。⚠️ 悬浮 `.nav-inner` 有 backdrop-filter,面板只能 absolute 相对 header 定位,不能用 fixed。
+- 分享与搜索:`Base.astro` 输出 `og:image`(`public/og.png`,1200×630,用 `python3 ops/og-image.py` 重新生成)、`summary_large_image` 和 WebSite 结构化数据;首页有 `meta.homeDesc`。
+- 加载:首页在 head 里 preload three.js;博客鱼群和 About 花的第二份 `<video>` 是 `preload="none"`,等第一份 `canplaythrough`(或 4s)后再预热,只为循环接缝服务。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
 - Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体;首页第二行标题用系统 Georgia / 宋体类衬线斜体。
 - 本地:`npm run dev`(开发,端口 4321)/ `npm run build`(构建)。当前 `@astrojs/vercel` 适配器不支持 `astro preview`;静态产物在 `dist/client`,动态路由用开发服务器或 Vercel 分支预览验证。
@@ -83,7 +85,7 @@
 - 文案目前是占位(成长/时间线/技能),等用户提供真实内容。
 
 ## 环境循环动画(博客页头 / 学习页左下角)
-- 博客列表使用 `ref4.mov` 的原始画面(彩色鱼群、水面、阳光与深灰环境),不抠主体、不做 WebGL 拉伸。以 `avconvert --preset PresetHighestQuality --multiPass` 转为 `public/assets/blog-fish.mp4`(H.264,366×632,约 60fps/2.8Mbps/3.5MB;不要用 `PresetAppleM4ViPod`,会降到 276×480/30fps)。`blog-fish-poster.png` 是同一视频的首帧,原生尺寸无损 PNG,不单独放大或锐化(与视频首帧像素 MSE 为 0,避免先糊后清);原始 `ref4.mov` 保留在仓库根目录。
+- 博客列表使用 `ref4.mov` 的原始画面(彩色鱼群、水面、阳光与深灰环境),不抠主体、不做 WebGL 拉伸。以 `avconvert --preset PresetHighestQuality --multiPass` 转为 `public/assets/blog-fish.mp4`(H.264,366×632,约 60fps/2.8Mbps/3.5MB;不要用 `PresetAppleM4ViPod`,会降到 276×480/30fps)。`blog-fish-poster.png` 是同一视频的首帧,原生尺寸无损 PNG,不单独放大或锐化(与视频首帧像素 MSE 为 0,避免先糊后清);原始 `ref4.mov` 只在本机仓库根目录(已被 `.gitignore` 忽略,不随仓库同步,需另行备份)。
 - 参考 The Sea We Breathe / And we were 的一体场景:博客页头为 100vw 全宽水下世界,标题直接叠在场景里,不再是右侧视频卡。两个隐藏 `<video>` 共用资源并驱动单个 `<canvas>`,不使用原生 loop:下一段在当前段结束前 1.4 秒从 0 启动,最后 1 秒 smoothstep 交叉混合,结束后交换 active,避免解码重启和鱼群位置硬切;后台标签页暂停,返回后续播。原视频始终按高度完整绘制并保持比例;宽屏左侧使用从原片左缘采样的纵向明暗底色,只在实际画面左缘 30% 内柔化衔接,不延展墙面/地面,窄屏居中裁切。桌面页头底部 14% 过渡到文章区底色;手机标题位于底部。画布按 devicePixelRatio(最高 2 倍)绘制并显式使用 high imageSmoothingQuality,`requestAnimationFrame` 持续绘制;poster 也通过同一画布绘制(不要恢复 CSS 右侧背景图,否则强刷会出现硬边),reduced-motion 暂停两个视频并保留当前帧。
 - 学习页继续使用 `ref3.mov` 的植物动画:抠图后调成紫/丁香色,60→30fps,首尾 1.5s 交叉淡化;资源 `plants.mp4`(616×480,H.264)与 `plants-still.png`。
 - 学习页组件 `src/components/plants/PlantLoop.astro`:固定在视口左下(贴底边、高 min(74vh,680px)),0.4 倍速、不透明度 .62;同时设 defaultPlaybackRate,避免加载时重置速度;shader 合成颜色与 alpha 并轻微锐化;reduced-motion / 无 WebGL / 播放被拒显示静帧;≤760px 隐藏。
