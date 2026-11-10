@@ -76,5 +76,5 @@ export function daysSince(iso: string | null): number | null {
 }
 
 export function slugify(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  return s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').slice(0, 64).replace(/^-+|-+$/g, '');   // trim after the cut, so it never ends on a hyphen
 }

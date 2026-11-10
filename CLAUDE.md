@@ -41,6 +41,8 @@
 - 加载:首页在 head 里 preload three.js;博客鱼群和 About 花的第二份 `<video>` 是 `preload="none"`,等第一份 `canplaythrough`(或 4s)后再预热,只为循环接缝服务。
 - 静态资源在 `public/assets/`(用绝对路径 `/assets/...`)。
 - Three.js r128 仍通过 cdnjs 引入;Google Fonts:Archivo / Hanken Grotesk / Space Mono,中日文回退到系统字体;首页第二行标题用系统 Georgia / 宋体类衬线斜体。
+- 质量检查:`npm run typecheck`(`tsc --noEmit`,不含 `.astro` 模板)、`npm test`(Vitest,`tests/`:图表尺寸解析 `diagram.ts`、三语字典键一致、`slugify`);CI(`.github/workflows/build.yml`)依次跑 typecheck → test → build。
+- 访问统计:Vercel Web Analytics,由适配器选项 `vercel({ webAnalytics: { enabled: true } })` 注入到所有页面(含 `/studio`);需在 Vercel 控制台 Analytics 里启用才有数据。
 - 本地:`npm run dev`(开发,端口 4321)/ `npm run build`(构建)。当前 `@astrojs/vercel` 适配器不支持 `astro preview`;静态产物在 `dist/client`,动态路由用开发服务器或 Vercel 分支预览验证。
 
 ## 设计方向

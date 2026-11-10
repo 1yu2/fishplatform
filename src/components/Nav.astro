@@ -23,7 +23,6 @@ const links = [
 const attrs = (l: (typeof links)[number]) => ({
   href: l.href,
   'aria-current': l.page && (l.page === current || (l.page === 'blog' && current === 'learning')) ? 'page' : undefined,
-  ...(l.external ? { target: '_blank', rel: 'noopener' } : {}),
 });
 ---
 <header class="nav">
@@ -55,7 +54,7 @@ const attrs = (l: (typeof links)[number]) => ({
   </div>
   <nav id="nav-menu" class="nav-menu" aria-label={t('nav.menu')} hidden>
     <ul>
-      {links.map((l) => <li><a {...attrs(l)}>{l.label}{l.external && <span aria-hidden="true"> ↗</span>}</a></li>)}
+      {links.map((l) => <li><a {...attrs(l)}>{l.label}</a></li>)}
     </ul>
   </nav>
 </header>
