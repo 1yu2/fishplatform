@@ -8,7 +8,7 @@ export default defineConfig({
   // Pages are pre-built by default; the few that read the Studio database (blog, learning) opt out
   // with `export const prerender = false` and run on Vercel on request.
   output: 'static',
-  adapter: vercel(),
+  adapter: vercel({ webAnalytics: { enabled: true } }),
   integrations: [preact()],
   markdown: {
     shikiConfig: { theme: 'github-light' },
