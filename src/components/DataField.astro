@@ -1,0 +1,128 @@
+---
+// Decoration for the case-studies page header: a drifting network of data points. Nearby points link up, small pulses
+// travel along the links (data flowing through a graph), and points near the pointer light up. Plain 2D canvas in the
+// site's own violet tokens; it stops when off screen or in a background tab, and draws one still frame for reduced motion.
+---
+<canvas class="data-field" aria-hidden="true"></canvas>
+
+<script is:inline>
+(function(){
+  var cv = document.querySelector('.data-field');
+  var ctx = cv && cv.getContext && cv.getContext('2d');
+  if(!ctx) return;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var css = getComputedStyle(document.documentElement);
+  function rgb(name, fallback){
+    var h = (css.getPropertyValue(name).trim() || fallback).replace('#','');
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)].join(',');
+  }
+  var ACCENT = rgb('--accent', '#7445e8'), SOFT = rgb('--accent-soft', '#b9a4ff'), GLOW = rgb('--glow', '#9b6bff');
+  var LINK = 132, W = 0, H = 0, nodes = [], pulses = [], mouse = null, visible = true, raf = 0, last = 0;
+
+  function size(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var want = Math.max(18, Math.min(64, Math.round(W * H / 4200)));
+    while(nodes.length < want) nodes.push({ x: Math.random()*W, y: Math.random()*H, vx: (Math.random()-.5)*14, vy: (Math.random()-.5)*14, z: .35 + Math.random()*.65, hot: 0 });
+    nodes.length = want;
+  }
+  function neighbours(i){
+    var out = [], a = nodes[i];
+    for(var j = 0; j < nodes.length; j++){
+      if(j === i) continue;
+      var dx = nodes[j].x - a.x, dy = nodes[j].y - a.y;
+      if(dx*dx + dy*dy < LINK*LINK) out.push(j);
+    }
+    return out;
+  }
+  function spawn(from){
+    var i = from == null ? Math.floor(Math.random()*nodes.length) : from, n = neighbours(i);
+    if(n.length) pulses.push({ a: i, b: n[Math.floor(Math.random()*n.length)], t: 0, hops: 2 + Math.floor(Math.random()*4) });
+  }
+
+  function draw(dt){
+    ctx.clearRect(0, 0, W, H);
+    var i, j, a, b, dx, dy, d;
+    for(i = 0; i < nodes.length; i++){
+      a = nodes[i];
+      a.x += a.vx*dt; a.y += a.vy*dt;
+      if(a.x < -20) a.x = W + 20; else if(a.x > W + 20) a.x = -20;
+      if(a.y < -20) a.y = H + 20; else if(a.y > H + 20) a.y = -20;
+      var near = 0;
+      if(mouse){ dx = a.x - mouse.x; dy = a.y - mouse.y; near = Math.max(0, 1 - Math.sqrt(dx*dx + dy*dy)/150); }
+      a.hot += (near - a.hot) * Math.min(1, dt*6);
+    }
+    ctx.lineWidth = 1;
+    for(i = 0; i < nodes.length; i++){
+      a = nodes[i];
+      for(j = i + 1; j < nodes.length; j++){
+        b = nodes[j]; dx = b.x - a.x; dy = b.y - a.y; d = dx*dx + dy*dy;
+        if(d > LINK*LINK) continue;
+        var k = 1 - Math.sqrt(d)/LINK, heat = Math.max(a.hot, b.hot);
+        ctx.strokeStyle = 'rgba(' + ACCENT + ',' + (k*(.34 + .5*heat)*Math.min(a.z, b.z)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    }
+    for(i = 0; i < nodes.length; i++){
+      a = nodes[i];
+      var r = 1.6 + a.z*2.2 + a.hot*2.4;
+      if(a.hot > .02){
+        ctx.fillStyle = 'rgba(' + GLOW + ',' + (a.hot*.22).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(a.x, a.y, r*3.2, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(' + (a.hot > .3 ? ACCENT : GLOW) + ',' + (.45 + .5*a.z).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.2832); ctx.fill();
+    }
+    // pulses: a bright dot runs along a link, then hops on to a neighbour
+    for(i = pulses.length - 1; i >= 0; i--){
+      var p = pulses[i]; a = nodes[p.a]; b = nodes[p.b];
+      if(!a || !b){ pulses.splice(i, 1); continue; }
+      p.t += dt*1.5;
+      var t = Math.min(p.t, 1), x = a.x + (b.x - a.x)*t, y = a.y + (b.y - a.y)*t;
+      ctx.fillStyle = 'rgba(' + GLOW + ',.25)'; ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = 'rgba(' + ACCENT + ',.95)'; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.2832); ctx.fill();
+      if(p.t >= 1){
+        b.hot = Math.max(b.hot, .8);
+        pulses.splice(i, 1);
+        if(p.hops > 0){ var n = neighbours(p.b).filter(function(q){ return q !== p.a; }); if(n.length) pulses.push({ a: p.b, b: n[Math.floor(Math.random()*n.length)], t: 0, hops: p.hops - 1 }); }
+      }
+    }
+  }
+
+  var sinceSpawn = 0;
+  function frame(now){
+    raf = 0;
+    if(!visible || document.hidden) return;
+    var dt = Math.min(.05, (now - (last || now))/1000); last = now;
+    sinceSpawn += dt;
+    if(sinceSpawn > .9 && pulses.length < 5){ sinceSpawn = 0; spawn(); }
+    draw(dt);
+    raf = requestAnimationFrame(frame);
+  }
+  function start(){ if(!raf && !reduce){ last = 0; raf = requestAnimationFrame(frame); } }
+
+  size();
+  window.addEventListener('resize', function(){ size(); if(reduce) draw(0); });
+  if(reduce){ draw(0); return; }
+  window.addEventListener('pointermove', function(e){
+    var r = cv.getBoundingClientRect();
+    mouse = (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) ? { x: e.clientX - r.left, y: e.clientY - r.top } : null;
+  }, { passive: true });
+  if('IntersectionObserver' in window) new IntersectionObserver(function(es){ visible = es[0].isIntersecting; if(visible) start(); }).observe(cv);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) start(); });
+  start();
+})();
+</script>
+
+<style is:global>
+  /* sits behind the page header, on its right; fades out towards the text and the cards */
+  .data-field{
+    position:absolute; top:70px; right:0; width:min(760px, 64%); height:400px; z-index:0; pointer-events:none;
+    -webkit-mask-image:linear-gradient(90deg, transparent, #000 38%), linear-gradient(180deg, #000 62%, transparent);
+    -webkit-mask-composite:source-in; mask-image:linear-gradient(90deg, transparent, #000 38%), linear-gradient(180deg, #000 62%, transparent); mask-composite:intersect;
+  }
+  @media(max-width:1000px){ .data-field{opacity:.6} }   /* here it runs behind the text: keep it quieter */
+  @media(max-width:760px){ .data-field{width:100%; height:300px; top:60px; opacity:.5} }
+</style>

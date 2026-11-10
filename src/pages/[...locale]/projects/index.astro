@@ -3,6 +3,7 @@ import '../../../styles/site.css';
 import { Image } from 'astro:assets';
 import Base from '../../../layouts/Base.astro';
 import Nav from '../../../components/Nav.astro';
+import DataField from '../../../components/DataField.astro';
 import { SITE } from '../../../site';
 import { languages, langs, localePath, localeStaticPaths, useTranslations, type Lang } from '../../../i18n/utils';
 import { formatDate } from '../../../lib/posts';
@@ -22,6 +23,7 @@ const kinds = (['data', 'ai', 'engineering', 'other'] as const).filter((k) => pr
   <Nav lang={lang} current="projects" alternates={alternates} />
 
   <main class="wrap projects">
+    <DataField />
     <header class="projects-head">
       <div class="eyebrow">{t('projects.eyebrow')}</div>
       <h1 class="page-title">{t('projects.title')}</h1>
@@ -101,7 +103,8 @@ const kinds = (['data', 'ai', 'engineering', 'other'] as const).filter((k) => pr
 </script>
 
 <style>
-  .projects{padding-top:130px}
+  .projects{padding-top:130px; position:relative}
+  .projects > :not(.data-field){position:relative; z-index:1}   /* content sits above the header animation */
   .projects-head{max-width:760px}
   .filter{display:flex; flex-wrap:wrap; gap:8px; margin:44px 0 0}
   .chip{
